@@ -35,7 +35,7 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] bg-black/30 backdrop-blur-sm"
             onClick={onClose}
           />
 
@@ -55,7 +55,7 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
                 onClose();
               }
             }}
-            className="fixed bottom-0 left-0 right-0 z-50 max-h-[85vh] rounded-t-3xl bg-clara-white shadow-lg flex flex-col"
+            className="fixed bottom-0 left-0 right-0 z-[60] max-h-[85vh] rounded-t-3xl bg-clara-white shadow-lg flex flex-col"
           >
             {/* Drag handle */}
             <div
@@ -66,7 +66,7 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
             </div>
 
             {/* Content — scrollable with safe area padding for iPhone home bar */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 32px)" }}>
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-24">
               {children}
             </div>
           </motion.div>
