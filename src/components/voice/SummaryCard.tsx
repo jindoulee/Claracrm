@@ -22,7 +22,7 @@ export function SummaryCard({
   const { interaction, contacts, follow_ups, facts_learned } = result;
 
   return (
-    <div className="space-y-6 pb-8">
+    <div className="space-y-6 pb-12">
       {/* Header */}
       <div className="text-center pt-2">
         <motion.div

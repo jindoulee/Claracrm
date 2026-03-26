@@ -65,8 +65,8 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
               <div className="w-10 h-1 rounded-full bg-clara-border" />
             </div>
 
-            {/* Content — scrollable */}
-            <div className="flex-1 overflow-y-auto overscroll-contain px-5 pb-safe">
+            {/* Content — scrollable with safe area padding for iPhone home bar */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-5" style={{ paddingBottom: "max(env(safe-area-inset-bottom, 0px), 32px)" }}>
               {children}
             </div>
           </motion.div>
