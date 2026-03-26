@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { VoiceRecorder } from "@/components/voice/VoiceRecorder";
 import { SummaryCard } from "@/components/voice/SummaryCard";
@@ -23,6 +23,33 @@ export default function HomePage() {
     contacts: Array<{ full_name: string }>;
   }>>([]);
 
+  // Fetch recent interactions on mount
+  useEffect(() => {
+    async function fetchInteractions() {
+      try {
+        const res = await fetch("/api/interactions");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          // The API returns flat interaction objects; map to the shape the timeline expects
+          setRecentInteractions(
+            data.map((item: Record<string, unknown>) => ({
+              id: item.id as string,
+              interaction_type: (item.interaction_type as string) || "general",
+              summary: (item.summary as string) || null,
+              occurred_at: (item.occurred_at as string) || new Date().toISOString(),
+              sentiment: (item.sentiment as string) || "neutral",
+              contacts: [], // Contacts aren't joined in the current GET endpoint
+            }))
+          );
+        }
+      } catch {
+        // Silently fail — timeline will just be empty until a voice memo is recorded
+      }
+    }
+    fetchInteractions();
+  }, []);
+
   const handleTranscriptComplete = useCallback(async (transcript: string) => {
     setIsProcessing(true);
     setProcessingResult(null);
@@ -43,11 +70,11 @@ export default function HomePage() {
       setFollowUpQuestions(data.followUpQuestions || []);
       setShowSummary(true);
 
-      // Add to local timeline
+      // Add to local timeline immediately for instant feedback
       if (data.result?.interaction) {
         setRecentInteractions((prev) => [
           {
-            id: Date.now().toString(),
+            id: data.dbIds?.interactionId || Date.now().toString(),
             interaction_type: data.result.interaction.type,
             summary: data.result.interaction.summary,
             occurred_at: new Date().toISOString(),

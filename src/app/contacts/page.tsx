@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { ContactCard } from "@/components/contacts/ContactCard";
 import { Search, UserPlus } from "lucide-react";
 
-// Demo data — will be replaced with Supabase queries
+// Demo data — used as fallback if API returns empty/error
 const DEMO_CONTACTS = [
   {
     id: "1",
@@ -36,10 +37,43 @@ const DEMO_CONTACTS = [
   },
 ];
 
-export default function ContactsPage() {
-  const [searchQuery, setSearchQuery] = useState("");
+interface ContactData {
+  id: string;
+  full_name: string;
+  company: string | null;
+  role: string | null;
+  tags: string[];
+  relationship_strength: number;
+  last_interaction_at: string | null;
+}
 
-  const filtered = DEMO_CONTACTS.filter(
+export default function ContactsPage() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [contacts, setContacts] = useState<ContactData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchContacts() {
+      try {
+        const res = await fetch("/api/contacts");
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setContacts(data);
+        } else {
+          setContacts(DEMO_CONTACTS);
+        }
+      } catch {
+        setContacts(DEMO_CONTACTS);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchContacts();
+  }, []);
+
+  const filtered = contacts.filter(
     (c) =>
       c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -48,7 +82,7 @@ export default function ContactsPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="People" subtitle={`${DEMO_CONTACTS.length} contacts`} />
+      <Header title="People" subtitle={`${contacts.length} contacts`} />
 
       <div className="px-5 space-y-4">
         {/* Search bar */}
@@ -66,23 +100,33 @@ export default function ContactsPage() {
           />
         </div>
 
-        {/* Contact list */}
-        <div className="space-y-2">
-          {filtered.map((contact, i) => (
-            <ContactCard key={contact.id} contact={contact} index={i} />
-          ))}
-        </div>
-
-        {filtered.length === 0 && searchQuery && (
+        {/* Loading state */}
+        {isLoading ? (
           <div className="text-center py-12">
-            <p className="text-clara-text-secondary text-sm">
-              No one named &ldquo;{searchQuery}&rdquo; yet.
-            </p>
-            <button className="mt-3 inline-flex items-center gap-1.5 text-sm text-clara-coral font-medium">
-              <UserPlus size={16} />
-              Add them via voice
-            </button>
+            <div className="inline-block w-6 h-6 border-2 border-clara-coral border-t-transparent rounded-full animate-spin" />
+            <p className="text-clara-text-muted text-sm mt-3">Loading contacts...</p>
           </div>
+        ) : (
+          <>
+            {/* Contact list */}
+            <div className="space-y-2">
+              {filtered.map((contact, i) => (
+                <ContactCard key={contact.id} contact={contact} index={i} onClick={() => router.push(`/contacts/${contact.id}`)} />
+              ))}
+            </div>
+
+            {filtered.length === 0 && searchQuery && (
+              <div className="text-center py-12">
+                <p className="text-clara-text-secondary text-sm">
+                  No one named &ldquo;{searchQuery}&rdquo; yet.
+                </p>
+                <button className="mt-3 inline-flex items-center gap-1.5 text-sm text-clara-coral font-medium">
+                  <UserPlus size={16} />
+                  Add them via voice
+                </button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
