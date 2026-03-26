@@ -1,9 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
+import OpenAI from "openai";
 import { CLARA_SYSTEM_PROMPT, CLARA_FOLLOWUP_PROMPT } from "./prompts";
 import type { VoiceProcessingResult } from "../supabase/types";
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY || "placeholder",
 });
 
 export async function processVoiceTranscript(
@@ -15,11 +15,15 @@ export async function processVoiceTranscript(
       ? `\n\nExisting contacts in the user's CRM (use these to match mentions):\n${existingContacts.map((c) => `- ${c.full_name}${c.nickname ? ` (aka ${c.nickname})` : ""}`).join("\n")}`
       : "";
 
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
     max_tokens: 2000,
-    system: CLARA_SYSTEM_PROMPT + contactContext,
+    response_format: { type: "json_object" },
     messages: [
+      {
+        role: "system",
+        content: CLARA_SYSTEM_PROMPT + contactContext,
+      },
       {
         role: "user",
         content: `Please analyze this voice memo transcript and extract all relevant data:\n\n"${transcript}"`,
@@ -27,15 +31,10 @@ export async function processVoiceTranscript(
     ],
   });
 
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
-
-  // Extract JSON from response (handle markdown code blocks)
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
-  const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text;
+  const text = response.choices[0]?.message?.content || "";
 
   try {
-    return JSON.parse(jsonStr) as VoiceProcessingResult;
+    return JSON.parse(text) as VoiceProcessingResult;
   } catch {
     // If parsing fails, return empty result with the raw text as clarification
     return {
@@ -68,11 +67,15 @@ export async function generateFollowUpQuestions(
   result: VoiceProcessingResult,
   transcript: string
 ): Promise<FollowUpQuestion[]> {
-  const response = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
     max_tokens: 500,
-    system: CLARA_FOLLOWUP_PROMPT,
+    response_format: { type: "json_object" },
     messages: [
+      {
+        role: "system",
+        content: CLARA_FOLLOWUP_PROMPT,
+      },
       {
         role: "user",
         content: `Transcript: "${transcript}"\n\nExtracted data: ${JSON.stringify(result, null, 2)}\n\nSuggest follow-up questions for missing or useful information.`,
@@ -80,14 +83,10 @@ export async function generateFollowUpQuestions(
     ],
   });
 
-  const text =
-    response.content[0].type === "text" ? response.content[0].text : "";
-
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
-  const jsonStr = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text;
+  const text = response.choices[0]?.message?.content || "";
 
   try {
-    const parsed = JSON.parse(jsonStr);
+    const parsed = JSON.parse(text);
     return parsed.questions || [];
   } catch {
     return [];
