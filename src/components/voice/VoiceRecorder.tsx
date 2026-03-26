@@ -21,37 +21,62 @@ export function VoiceRecorder({ onTranscriptComplete, isProcessing = false }: Vo
   const [isSupported, setIsSupported] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
+  const isRecordingRef = useRef(false);
+  const transcriptRef = useRef("");
+  const interimRef = useRef("");
 
   useEffect(() => {
     setIsSupported(isSpeechSupported());
   }, []);
 
+  // Keep refs in sync with state
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
+
+  useEffect(() => {
+    interimRef.current = interimText;
+  }, [interimText]);
+
   const startRecording = useCallback(() => {
     setError(null);
     setTranscript("");
     setInterimText("");
+    transcriptRef.current = "";
+    interimRef.current = "";
     hapticMedium();
 
     const recognition = createSpeechRecognition(
       (result) => {
         if (result.isFinal) {
-          setTranscript((prev) => prev + (prev ? " " : "") + result.transcript);
+          setTranscript((prev) => {
+            const next = prev + (prev ? " " : "") + result.transcript;
+            transcriptRef.current = next;
+            return next;
+          });
           setInterimText("");
+          interimRef.current = "";
         } else {
           setInterimText(result.transcript);
+          interimRef.current = result.transcript;
         }
       },
       (err) => {
         setError(err);
         setIsRecording(false);
+        isRecordingRef.current = false;
       },
       () => {
-        // onEnd — auto-restart if still recording
-        if (recognitionRef.current && isRecording) {
+        // onEnd — use ref to check current recording state (avoids stale closure)
+        if (isRecordingRef.current && recognitionRef.current) {
           try {
             recognitionRef.current.start();
           } catch {
-            // already started
+            // already started or stopped
           }
         }
       }
@@ -61,32 +86,43 @@ export function VoiceRecorder({ onTranscriptComplete, isProcessing = false }: Vo
       recognitionRef.current = recognition;
       recognition.start();
       setIsRecording(true);
+      isRecordingRef.current = true;
     }
-  }, [isRecording]);
+  }, []);
 
   const stopRecording = useCallback(() => {
+    // Mark as not recording FIRST to prevent onEnd from restarting
+    isRecordingRef.current = false;
+    setIsRecording(false);
+
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch {
+        // already stopped
+      }
       recognitionRef.current = null;
     }
-    setIsRecording(false);
+
     hapticSuccess();
 
-    const finalTranscript = transcript + (interimText ? " " + interimText : "");
+    // Use refs for the most current transcript values
+    const finalTranscript = transcriptRef.current + (interimRef.current ? " " + interimRef.current : "");
     if (finalTranscript.trim()) {
       onTranscriptComplete(finalTranscript.trim());
     }
     setInterimText("");
-  }, [transcript, interimText, onTranscriptComplete]);
+    interimRef.current = "";
+  }, [onTranscriptComplete]);
 
-  const handleVoiceButton = () => {
+  const handleVoiceButton = useCallback(() => {
     if (isProcessing) return;
-    if (isRecording) {
+    if (isRecordingRef.current) {
       stopRecording();
     } else {
       startRecording();
     }
-  };
+  }, [isProcessing, stopRecording, startRecording]);
 
   if (!isSupported) {
     return (
@@ -125,18 +161,16 @@ export function VoiceRecorder({ onTranscriptComplete, isProcessing = false }: Vo
       </AnimatePresence>
 
       {/* Voice button */}
-      <motion.button
+      <button
         onClick={handleVoiceButton}
         disabled={isProcessing}
-        className={`relative flex items-center justify-center w-20 h-20 rounded-full transition-all ${
+        className={`relative flex items-center justify-center w-20 h-20 rounded-full transition-all active:scale-90 ${
           isProcessing
             ? "bg-clara-warm-gray cursor-wait"
             : isRecording
             ? "bg-clara-coral scale-110"
-            : "bg-clara-coral hover:bg-clara-coral-dark active:scale-95"
+            : "bg-clara-coral hover:bg-clara-coral-dark"
         } ${!isRecording && !isProcessing ? "voice-btn-glow" : ""}`}
-        whileTap={isProcessing ? {} : { scale: 0.9 }}
-        layout
       >
         {isProcessing ? (
           <Loader2 className="text-clara-text-muted animate-spin" size={28} />
@@ -145,7 +179,7 @@ export function VoiceRecorder({ onTranscriptComplete, isProcessing = false }: Vo
         ) : (
           <Mic className="text-white" size={28} />
         )}
-      </motion.button>
+      </button>
 
       {/* Status text */}
       <p className="text-sm text-clara-text-muted">
