@@ -1,0 +1,195 @@
+@import "tailwindcss";
+
+/* ============================================
+   ClaraCRM Design System
+   Inspired by Paper by WeTransfer
+   Clean, warm, with subtle skeuomorphism
+   ============================================ */
+
+:root {
+  /* Core palette — warm, approachable */
+  --clara-cream: #FDF8F4;
+  --clara-white: #FFFFFF;
+  --clara-warm-gray: #F5F0EB;
+  --clara-border: #E8E0D8;
+  --clara-text: #2D2A26;
+  --clara-text-secondary: #7A736B;
+  --clara-text-muted: #B0A89F;
+
+  /* Accent colors */
+  --clara-coral: #E8725C;
+  --clara-coral-light: #FCEAE6;
+  --clara-coral-dark: #C95A45;
+  --clara-blue: #4A90D9;
+  --clara-blue-light: #E8F0FA;
+  --clara-green: #5CB87A;
+  --clara-green-light: #E6F5EC;
+  --clara-amber: #E5A84B;
+  --clara-amber-light: #FDF3E0;
+  --clara-purple: #8B6CC1;
+  --clara-purple-light: #F0EBF8;
+
+  /* Shadows — subtle, warm */
+  --shadow-sm: 0 1px 2px rgba(45, 42, 38, 0.06);
+  --shadow-md: 0 4px 12px rgba(45, 42, 38, 0.08);
+  --shadow-lg: 0 8px 24px rgba(45, 42, 38, 0.12);
+  --shadow-glow: 0 0 20px rgba(232, 114, 92, 0.3);
+
+  /* Spacing */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Typography */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* Applied */
+  --background: var(--clara-cream);
+  --foreground: var(--clara-text);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-clara-cream: var(--clara-cream);
+  --color-clara-white: var(--clara-white);
+  --color-clara-warm-gray: var(--clara-warm-gray);
+  --color-clara-border: var(--clara-border);
+  --color-clara-text: var(--clara-text);
+  --color-clara-text-secondary: var(--clara-text-secondary);
+  --color-clara-text-muted: var(--clara-text-muted);
+  --color-clara-coral: var(--clara-coral);
+  --color-clara-coral-light: var(--clara-coral-light);
+  --color-clara-coral-dark: var(--clara-coral-dark);
+  --color-clara-blue: var(--clara-blue);
+  --color-clara-blue-light: var(--clara-blue-light);
+  --color-clara-green: var(--clara-green);
+  --color-clara-green-light: var(--clara-green-light);
+  --color-clara-amber: var(--clara-amber);
+  --color-clara-amber-light: var(--clara-amber-light);
+  --color-clara-purple: var(--clara-purple);
+  --color-clara-purple-light: var(--clara-purple-light);
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+/* Base styles */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior: none;
+}
+
+/* Mobile-first: prevent bounce scroll */
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+#__next {
+  height: 100%;
+}
+
+/* Paper-inspired card style */
+.clara-card {
+  background: var(--clara-white);
+  border: 1px solid var(--clara-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.clara-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.clara-card:active {
+  transform: scale(0.98);
+}
+
+/* Voice button glow animation */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(232, 114, 92, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 16px rgba(232, 114, 92, 0);
+  }
+}
+
+.voice-btn-glow {
+  animation: pulse-glow 2s infinite;
+}
+
+/* Voice recording waveform */
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+
+.wave-bar {
+  animation: wave 0.8s ease-in-out infinite;
+}
+
+/* Smooth page transitions */
+.page-enter {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* Chip / tag style */
+.clara-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--clara-border);
+  background: var(--clara-white);
+  color: var(--clara-text-secondary);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.clara-chip:active {
+  transform: scale(0.95);
+  background: var(--clara-warm-gray);
+}
+
+/* Safe area for mobile */
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 16px);
+}
+
+/* Scrollable content area */
+.scroll-area {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Selection color */
+::selection {
+  background: var(--clara-coral-light);
+  color: var(--clara-text);
+}
