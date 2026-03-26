@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { VoiceRecorder } from "@/components/voice/VoiceRecorder";
 import { SummaryCard } from "@/components/voice/SummaryCard";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { InteractionTimeline } from "@/components/interactions/InteractionTimeline";
 import type { VoiceProcessingResult } from "@/lib/supabase/types";
 import type { FollowUpQuestion } from "@/lib/ai/process-voice";
@@ -13,6 +13,7 @@ export default function HomePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingResult, setProcessingResult] = useState<VoiceProcessingResult | null>(null);
   const [followUpQuestions, setFollowUpQuestions] = useState<FollowUpQuestion[]>([]);
+  const [showSummary, setShowSummary] = useState(false);
   const [recentInteractions, setRecentInteractions] = useState<Array<{
     id: string;
     interaction_type: string;
@@ -26,6 +27,7 @@ export default function HomePage() {
     setIsProcessing(true);
     setProcessingResult(null);
     setFollowUpQuestions([]);
+    setShowSummary(false);
 
     try {
       const response = await fetch("/api/voice", {
@@ -39,6 +41,7 @@ export default function HomePage() {
       const data = await response.json();
       setProcessingResult(data.result);
       setFollowUpQuestions(data.followUpQuestions || []);
+      setShowSummary(true);
 
       // Add to local timeline
       if (data.result?.interaction) {
@@ -64,19 +67,19 @@ export default function HomePage() {
   const handleQuestionAnswer = (question: FollowUpQuestion) => {
     // TODO: Open a mini input for the user to answer this question
     console.log("Answer question:", question);
-    // For now, remove the question from the list
     setFollowUpQuestions((prev) =>
       prev.filter((q) => q.chip_label !== question.chip_label)
     );
   };
 
   const handleDismiss = () => {
+    setShowSummary(false);
     setProcessingResult(null);
     setFollowUpQuestions([]);
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col min-h-0">
       <Header title="Clara" subtitle="remembers everything" />
 
       <div className="flex-1 flex flex-col items-center px-5">
@@ -88,25 +91,23 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Summary card after processing */}
-        <AnimatePresence>
-          {processingResult && (
-            <div className="w-full flex justify-center mb-6">
-              <SummaryCard
-                result={processingResult}
-                followUpQuestions={followUpQuestions}
-                onQuestionAnswer={handleQuestionAnswer}
-                onDismiss={handleDismiss}
-              />
-            </div>
-          )}
-        </AnimatePresence>
-
         {/* Recent interactions timeline */}
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-sm pb-8">
           <InteractionTimeline interactions={recentInteractions} />
         </div>
       </div>
+
+      {/* Summary bottom sheet — slides up after processing */}
+      <BottomSheet isOpen={showSummary} onClose={handleDismiss}>
+        {processingResult && (
+          <SummaryCard
+            result={processingResult}
+            followUpQuestions={followUpQuestions}
+            onQuestionAnswer={handleQuestionAnswer}
+            onDismiss={handleDismiss}
+          />
+        )}
+      </BottomSheet>
     </div>
   );
 }

@@ -86,10 +86,14 @@ body {
   overscroll-behavior: none;
 }
 
-/* Mobile-first: prevent bounce scroll */
-html, body {
+/* Mobile-first: prevent bounce scroll on html only */
+html {
   height: 100%;
   overflow: hidden;
+}
+
+body {
+  height: 100%;
 }
 
 #__next {
@@ -179,6 +183,10 @@ html, body {
 
 .safe-top {
   padding-top: max(env(safe-area-inset-top), 16px);
+}
+
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 24px);
 }
 
 /* Scrollable content area */
