@@ -161,25 +161,50 @@ export function VoiceRecorder({ onTranscriptComplete, isProcessing = false }: Vo
       </AnimatePresence>
 
       {/* Voice button */}
-      <button
-        onClick={handleVoiceButton}
-        disabled={isProcessing}
-        className={`relative flex items-center justify-center w-20 h-20 rounded-full transition-all active:scale-90 ${
-          isProcessing
-            ? "bg-clara-warm-gray cursor-wait"
-            : isRecording
-            ? "bg-clara-coral scale-110"
-            : "bg-clara-coral hover:bg-clara-coral-dark"
-        } ${!isRecording && !isProcessing ? "voice-btn-glow" : ""}`}
-      >
-        {isProcessing ? (
-          <Loader2 className="text-clara-text-muted animate-spin" size={28} />
-        ) : isRecording ? (
-          <Square className="text-white" size={24} fill="white" />
-        ) : (
-          <Mic className="text-white" size={28} />
-        )}
-      </button>
+      <div className="relative flex items-center justify-center">
+        {/* Breathing pulse rings */}
+        <AnimatePresence>
+          {isRecording && (
+            <>
+              {[0, 1, 2].map((ring) => (
+                <motion.div
+                  key={ring}
+                  className="absolute w-20 h-20 rounded-full border-2 border-clara-coral"
+                  initial={{ scale: 1, opacity: 0 }}
+                  animate={{ scale: 1.3, opacity: [0.4, 0] }}
+                  exit={{ opacity: 0 }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 1.8,
+                    ease: "easeOut",
+                    delay: ring * 0.6,
+                  }}
+                />
+              ))}
+            </>
+          )}
+        </AnimatePresence>
+
+        <button
+          onClick={handleVoiceButton}
+          disabled={isProcessing}
+          className={`relative flex items-center justify-center w-20 h-20 rounded-full transition-all active:scale-90 ${
+            isProcessing
+              ? "bg-clara-warm-gray cursor-wait"
+              : isRecording
+              ? "bg-clara-coral scale-110"
+              : "bg-clara-coral hover:bg-clara-coral-dark"
+          } ${!isRecording && !isProcessing ? "voice-btn-glow" : ""}`}
+        >
+          {isProcessing ? (
+            <Loader2 className="text-clara-text-muted animate-spin" size={28} />
+          ) : isRecording ? (
+            <Square className="text-white" size={24} fill="white" />
+          ) : (
+            <Mic className="text-white" size={28} />
+          )}
+        </button>
+      </div>
 
       {/* Status text */}
       <p className="text-sm text-clara-text-muted">

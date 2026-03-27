@@ -369,7 +369,20 @@ export function SummaryCard({
       {facts_learned.length > 0 && (
         <div className="space-y-2.5">
           <h3 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider flex items-center gap-1.5">
-            <Lightbulb size={13} />
+            <motion.span
+              animate={{
+                scale: [0.5, 1.2, 1],
+                textShadow: [
+                  "0 0 0px #F5A623",
+                  "0 0 12px #F5A623",
+                  "0 0 0px #F5A623",
+                ],
+              }}
+              transition={{ duration: 0.5, ease: "easeOut", delay: 0.15 }}
+              className="inline-flex"
+            >
+              <Lightbulb size={13} />
+            </motion.span>
             Clara learned
             <Pencil size={10} className="text-clara-text-muted ml-1" />
           </h3>
@@ -377,9 +390,14 @@ export function SummaryCard({
             {facts_learned.map((fact, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 + i * 0.08 }}
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 500,
+                  damping: 25,
+                  delay: 0.15 + i * 0.08,
+                }}
                 className="flex items-start gap-2 bg-clara-cream rounded-xl px-3 py-2.5"
               >
                 <span className="text-xs text-clara-text-muted mt-0.5 capitalize flex-shrink-0">

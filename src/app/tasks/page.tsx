@@ -219,6 +219,7 @@ export default function TasksPage() {
   const [toastVisible, setToastVisible] = useState(false);
   const [lastCompletedTask, setLastCompletedTask] = useState<{ id: string; prevStatus: TaskData["status"] } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
 
   const clearToast = useCallback(() => {
     setToastVisible(false);
@@ -273,6 +274,16 @@ export default function TasksPage() {
     if (!task) return;
 
     const prevStatus = task.status;
+
+    // Start completion animation
+    setCompletingTaskId(id);
+
+    // Wait for checkmark draw + hold (300ms draw + 300ms hold)
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    // After exit animation completes (~400ms), move to done
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    setCompletingTaskId(null);
 
     // Optimistic update
     setTasks((prev) =>
@@ -364,28 +375,55 @@ export default function TasksPage() {
                 <h2 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider px-1">
                   Upcoming
                 </h2>
+                <AnimatePresence>
                 {pendingTasks.map((task, i) => {
                   const ChannelIcon = channelIcons[task.channel || ""] || ChevronRight;
                   const isOverdue = task.due_at && new Date(task.due_at) < new Date();
                   const isExpanded = expandedTaskId === task.id;
+                  const isCompleting = completingTaskId === task.id;
 
                   return (
                     <motion.div
                       key={task.id}
                       initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05 }}
+                      animate={
+                        isCompleting
+                          ? { y: -20, scale: 0.95, opacity: 0 }
+                          : { opacity: 1, y: 0 }
+                      }
+                      exit={{ y: -20, scale: 0.95, opacity: 0 }}
+                      transition={
+                        isCompleting
+                          ? { duration: 0.4, ease: "easeIn" }
+                          : { delay: i * 0.05 }
+                      }
+                      layout
                       className="clara-card p-4"
                     >
                       <div className="flex items-start gap-3">
-                        {/* Checkbox */}
+                        {/* Checkbox with animated checkmark */}
                         <button
                           onClick={() => completeTask(task.id)}
-                          className="flex-shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 border-clara-border hover:border-clara-coral active:bg-clara-coral-light transition-colors flex items-center justify-center"
+                          className={`flex-shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 transition-colors flex items-center justify-center ${
+                            isCompleting
+                              ? "border-clara-coral bg-clara-coral"
+                              : "border-clara-border hover:border-clara-coral active:bg-clara-coral-light"
+                          }`}
                           aria-label="Complete task"
                         >
-                          {task.status === "done" && (
-                            <Check size={12} className="text-clara-coral" />
+                          {isCompleting && (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                              <motion.path
+                                d="M2 6L5 9L10 3"
+                                stroke="white"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                initial={{ pathLength: 0 }}
+                                animate={{ pathLength: 1 }}
+                                transition={{ duration: 0.3, ease: "easeOut" }}
+                              />
+                            </svg>
                           )}
                         </button>
 
@@ -433,6 +471,7 @@ export default function TasksPage() {
                     </motion.div>
                   );
                 })}
+                </AnimatePresence>
               </div>
             ) : (
               <div className="text-center py-12">
