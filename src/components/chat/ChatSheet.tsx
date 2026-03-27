@@ -248,7 +248,7 @@ export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
         </div>
 
         {/* Input bar */}
-        <div className="flex-shrink-0 bg-clara-cream border-t border-clara-border pt-3 pb-2 -mx-5 px-5">
+        <div className="flex-shrink-0 bg-clara-cream border-t border-clara-border pt-3 pb-8 -mx-5 px-5">
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
             <div className="flex-1 flex items-center gap-2 bg-white border border-clara-border rounded-full px-4 py-2">
               <input

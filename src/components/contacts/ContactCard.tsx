@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { User, Clock, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { User, Clock, TrendingDown, TrendingUp } from "lucide-react";
 
 interface ContactCardProps {
   contact: {
@@ -23,10 +23,16 @@ function strengthColor(strength: number) {
   return "text-red-400";
 }
 
-function StrengthIcon({ strength }: { strength: number }) {
-  if (strength >= 70) return <TrendingUp size={14} />;
-  if (strength >= 40) return <Minus size={14} />;
-  return <TrendingDown size={14} />;
+function strengthBgColor(strength: number) {
+  if (strength >= 70) return "bg-clara-green";
+  if (strength >= 40) return "bg-clara-amber";
+  return "bg-red-400";
+}
+
+function strengthLabel(strength: number) {
+  if (strength >= 70) return "Strong";
+  if (strength >= 40) return "Okay";
+  return "Fading";
 }
 
 function formatLastSeen(date: string | null): string {
@@ -87,11 +93,18 @@ export function ContactCard({ contact, index, onClick }: ContactCardProps) {
       </div>
 
       {/* Strength + last seen */}
-      <div className="flex-shrink-0 flex flex-col items-end gap-0.5">
-        <span className={`flex items-center gap-0.5 text-xs font-medium ${strengthColor(contact.relationship_strength)}`}>
-          <StrengthIcon strength={contact.relationship_strength} />
-          {contact.relationship_strength}
-        </span>
+      <div className="flex-shrink-0 flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-0.5">
+          <span className={`text-[10px] font-semibold ${strengthColor(contact.relationship_strength)}`}>
+            {strengthLabel(contact.relationship_strength)}
+          </span>
+          <div className="w-12 h-1 bg-clara-warm-gray rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full ${strengthBgColor(contact.relationship_strength)}`}
+              style={{ width: `${contact.relationship_strength}%` }}
+            />
+          </div>
+        </div>
         <span className="text-[10px] text-clara-text-muted flex items-center gap-0.5">
           <Clock size={10} />
           {formatLastSeen(contact.last_interaction_at)}
