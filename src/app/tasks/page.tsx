@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
+import Link from "next/link";
 import {
   Check,
   Clock,
@@ -10,6 +11,11 @@ import {
   Mail,
   Phone,
   ChevronRight,
+  ChevronDown,
+  Calendar,
+  Tag,
+  Undo2,
+  Mic,
 } from "lucide-react";
 import { hapticSuccess } from "@/lib/utils/haptics";
 
@@ -22,46 +28,23 @@ interface TaskData {
   priority: "low" | "medium" | "high";
   channel: string | null;
   contact_name: string;
+  contact_id?: string | null;
+  interaction_id?: string | null;
+  created_at?: string;
   contacts?: { id: string; full_name: string; avatar_url: string | null } | null;
 }
-
-const INITIAL_TASKS: TaskData[] = [
-  {
-    id: "1",
-    title: "Text Alan about his kids",
-    description: "Check if they're feeling better",
-    due_at: new Date(Date.now() + 86400000 * 14).toISOString(),
-    status: "pending",
-    priority: "medium",
-    channel: "sms",
-    contact_name: "Alan Chen",
-  },
-  {
-    id: "2",
-    title: "Wish Alan well on new role",
-    description: "Send a congratulatory message",
-    due_at: new Date(Date.now() + 86400000).toISOString(),
-    status: "pending",
-    priority: "high",
-    channel: "any",
-    contact_name: "Alan Chen",
-  },
-  {
-    id: "3",
-    title: "Follow up with Sarah on intro",
-    description: "She mentioned connecting us with her investor friend",
-    due_at: new Date(Date.now() + 86400000 * 3).toISOString(),
-    status: "pending",
-    priority: "medium",
-    channel: "email",
-    contact_name: "Sarah Kim",
-  },
-];
 
 const channelIcons: Record<string, typeof MessageSquare> = {
   sms: MessageSquare,
   email: Mail,
   call: Phone,
+};
+
+const channelLabels: Record<string, string> = {
+  sms: "Text",
+  email: "Email",
+  call: "Call",
+  any: "Any",
 };
 
 function formatDueDate(date: string | null): string {
@@ -78,39 +61,187 @@ function formatDueDate(date: string | null): string {
   return due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function formatFullDate(date: string | null): string {
+  if (!date) return "No date";
+  return new Date(date).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function priorityDot(priority: string) {
   if (priority === "high") return "bg-clara-coral";
   if (priority === "medium") return "bg-clara-amber";
   return "bg-clara-text-muted";
 }
 
+function priorityLabel(priority: string) {
+  if (priority === "high") return "High";
+  if (priority === "medium") return "Medium";
+  return "Low";
+}
+
 function normalizeTask(task: TaskData): TaskData {
-  // If the task came from the API with a joined contacts object, extract the name
   if (task.contacts && !task.contact_name) {
-    return { ...task, contact_name: task.contacts.full_name };
+    return {
+      ...task,
+      contact_name: task.contacts.full_name,
+      contact_id: task.contacts.id,
+    };
+  }
+  if (task.contacts) {
+    return { ...task, contact_id: task.contacts.id };
   }
   return task;
 }
 
+// ── Undo Toast ──────────────────────────────────────────────
+function UndoToast({
+  visible,
+  onUndo,
+  onDismiss,
+}: {
+  visible: boolean;
+  onUndo: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <AnimatePresence>
+      {visible && (
+        <motion.div
+          initial={{ y: 80, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 80, opacity: 0 }}
+          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          className="fixed bottom-24 left-4 right-4 z-[55] flex items-center justify-between bg-clara-text text-clara-cream rounded-xl px-4 py-3 shadow-lg"
+        >
+          <span className="text-sm font-medium">Task completed</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onUndo();
+            }}
+            className="flex items-center gap-1.5 text-sm font-semibold text-clara-coral-light active:opacity-70 px-3 py-1 -mr-1 rounded-lg"
+          >
+            <Undo2 size={14} />
+            Undo
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ── Task Detail (expandable) ────────────────────────────────
+function TaskDetail({ task }: { task: TaskData }) {
+  const ChannelIcon = channelIcons[task.channel || ""] || ChevronRight;
+
+  return (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: "auto", opacity: 1 }}
+      exit={{ height: 0, opacity: 0 }}
+      transition={{ duration: 0.2, ease: "easeInOut" }}
+      className="overflow-hidden"
+    >
+      <div className="pt-3 mt-3 border-t border-clara-border space-y-2.5 pl-3">
+        {/* Full title */}
+        <p className="text-sm font-medium text-clara-text">{task.title}</p>
+
+        {/* Contact */}
+        {task.contact_name && (
+          <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
+            <span className="text-clara-text-muted">Contact:</span>
+            {task.contact_id ? (
+              <Link
+                href={`/contacts/${task.contact_id}`}
+                className="text-clara-coral font-medium underline underline-offset-2"
+              >
+                {task.contact_name}
+              </Link>
+            ) : (
+              <span>{task.contact_name}</span>
+            )}
+          </div>
+        )}
+
+        {/* Due date */}
+        <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
+          <Calendar size={12} className="text-clara-text-muted" />
+          <span>{formatFullDate(task.due_at)}</span>
+        </div>
+
+        {/* Channel */}
+        {task.channel && (
+          <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
+            <ChannelIcon size={12} className="text-clara-text-muted" />
+            <span>{channelLabels[task.channel] || task.channel}</span>
+          </div>
+        )}
+
+        {/* Priority */}
+        <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
+          <Tag size={12} className="text-clara-text-muted" />
+          <span className="flex items-center gap-1.5">
+            <span className={`w-1.5 h-1.5 rounded-full ${priorityDot(task.priority)}`} />
+            {priorityLabel(task.priority)} priority
+          </span>
+        </div>
+
+        {/* Description / source interaction */}
+        {task.description && (
+          <div className="text-xs text-clara-text-muted bg-clara-warm-gray rounded-lg p-2.5 mt-1">
+            {task.description}
+          </div>
+        )}
+
+        {/* Created date */}
+        {task.created_at && (
+          <p className="text-[11px] text-clara-text-muted pt-1">
+            Created {new Date(task.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </p>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Main Page ───────────────────────────────────────────────
 export default function TasksPage() {
   const [tasks, setTasks] = useState<TaskData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [doneExpanded, setDoneExpanded] = useState(false);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+
+  // Undo toast state
+  const [toastVisible, setToastVisible] = useState(false);
+  const [lastCompletedTask, setLastCompletedTask] = useState<{ id: string; prevStatus: TaskData["status"] } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearToast = useCallback(() => {
+    setToastVisible(false);
+    setLastCompletedTask(null);
+    if (toastTimer.current) {
+      clearTimeout(toastTimer.current);
+      toastTimer.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     async function fetchTasks() {
       try {
-        const res = await fetch("/api/tasks");
+        const res = await fetch("/api/tasks?include_done=true");
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setTasks(
-            data.map((t: TaskData) => normalizeTask(t))
-          );
+        if (Array.isArray(data)) {
+          setTasks(data.map((t: TaskData) => normalizeTask(t)));
         } else {
-          setTasks(INITIAL_TASKS);
+          setTasks([]);
         }
       } catch {
-        setTasks(INITIAL_TASKS);
+        setTasks([]);
       } finally {
         setIsLoading(false);
       }
@@ -118,57 +249,107 @@ export default function TasksPage() {
     fetchTasks();
   }, []);
 
-  const pendingTasks = tasks.filter((t) => t.status === "pending" || t.status === "snoozed");
-  const completedTasks = tasks.filter((t) => t.status === "done");
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
 
-  const toggleTask = async (id: string) => {
+  const pendingTasks = tasks.filter((t) => t.status === "pending" || t.status === "snoozed");
+  const completedTasks = tasks
+    .filter((t) => t.status === "done")
+    .sort((a, b) => {
+      // Most recently completed first (use updated_at or created_at as proxy)
+      const aTime = new Date(a.due_at || a.created_at || 0).getTime();
+      const bTime = new Date(b.due_at || b.created_at || 0).getTime();
+      return bTime - aTime;
+    });
+
+  const completeTask = async (id: string) => {
     hapticSuccess();
 
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
 
-    const newStatus = task.status === "pending" || task.status === "snoozed" ? "done" : "pending";
+    const prevStatus = task.status;
 
     // Optimistic update
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, status: newStatus as TaskData["status"] } : t
-      )
+      prev.map((t) => (t.id === id ? { ...t, status: "done" as const } : t))
     );
 
-    // Persist to API
+    // Show undo toast
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setLastCompletedTask({ id, prevStatus });
+    setToastVisible(true);
+    toastTimer.current = setTimeout(() => {
+      setToastVisible(false);
+      setLastCompletedTask(null);
+    }, 4000);
+
+    // Persist
     try {
       const res = await fetch("/api/tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: newStatus }),
+        body: JSON.stringify({ id, status: "done" }),
       });
       if (!res.ok) {
-        // Revert on failure
         setTasks((prev) =>
-          prev.map((t) =>
-            t.id === id ? { ...t, status: task.status } : t
-          )
+          prev.map((t) => (t.id === id ? { ...t, status: prevStatus } : t))
+        );
+        clearToast();
+      }
+    } catch {
+      setTasks((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, status: prevStatus } : t))
+      );
+      clearToast();
+    }
+  };
+
+  const uncompleteTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, status: "pending" as const } : t))
+    );
+
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: "pending" }),
+      });
+      if (!res.ok) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === id ? { ...t, status: "done" as const } : t))
         );
       }
     } catch {
-      // Revert on error
       setTasks((prev) =>
-        prev.map((t) =>
-          t.id === id ? { ...t, status: task.status } : t
-        )
+        prev.map((t) => (t.id === id ? { ...t, status: "done" as const } : t))
       );
     }
   };
+
+  const handleUndo = useCallback(() => {
+    if (!lastCompletedTask) return;
+    uncompleteTask(lastCompletedTask.id);
+    clearToast();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastCompletedTask, clearToast]);
 
   return (
     <div className="flex flex-col h-full">
       <Header
         title="Tasks"
-        subtitle={`${pendingTasks.length} follow-ups`}
+        subtitle={`${pendingTasks.length} follow-up${pendingTasks.length !== 1 ? "s" : ""}`}
       />
 
-      <div className="px-5 space-y-6">
+      <div className="px-5 space-y-6 pb-32">
         {/* Loading state */}
         {isLoading ? (
           <div className="text-center py-12">
@@ -186,6 +367,7 @@ export default function TasksPage() {
                 {pendingTasks.map((task, i) => {
                   const ChannelIcon = channelIcons[task.channel || ""] || ChevronRight;
                   const isOverdue = task.due_at && new Date(task.due_at) < new Date();
+                  const isExpanded = expandedTaskId === task.id;
 
                   return (
                     <motion.div
@@ -193,92 +375,158 @@ export default function TasksPage() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.05 }}
-                      className="clara-card p-4 flex items-start gap-3"
+                      className="clara-card p-4"
                     >
-                      {/* Checkbox */}
-                      <button
-                        onClick={() => toggleTask(task.id)}
-                        className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full border-2 border-clara-border hover:border-clara-coral transition-colors flex items-center justify-center"
-                      >
-                        {task.status === "done" && (
-                          <Check size={12} className="text-clara-coral" />
-                        )}
-                      </button>
+                      <div className="flex items-start gap-3">
+                        {/* Checkbox */}
+                        <button
+                          onClick={() => completeTask(task.id)}
+                          className="flex-shrink-0 mt-0.5 w-6 h-6 rounded-full border-2 border-clara-border hover:border-clara-coral active:bg-clara-coral-light transition-colors flex items-center justify-center"
+                          aria-label="Complete task"
+                        >
+                          {task.status === "done" && (
+                            <Check size={12} className="text-clara-coral" />
+                          )}
+                        </button>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${priorityDot(task.priority)}`}
-                          />
-                          <p className="text-sm font-medium text-clara-text">
-                            {task.title}
-                          </p>
-                        </div>
-                        {task.description && (
-                          <p className="text-xs text-clara-text-muted mt-0.5 pl-3">
-                            {task.description}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-3 mt-1.5 pl-3">
-                          <span
-                            className={`text-xs flex items-center gap-1 ${
-                              isOverdue
-                                ? "text-red-500 font-medium"
-                                : "text-clara-text-muted"
-                            }`}
-                          >
-                            <Clock size={11} />
-                            {formatDueDate(task.due_at)}
-                          </span>
-                          <span className="text-xs text-clara-text-muted flex items-center gap-1">
-                            <ChannelIcon size={11} />
-                            {task.contact_name}
-                          </span>
-                        </div>
+                        {/* Content — tappable for detail */}
+                        <button
+                          onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                          className="flex-1 min-w-0 text-left"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${priorityDot(task.priority)}`}
+                            />
+                            <p className="text-sm font-medium text-clara-text">
+                              {task.title}
+                            </p>
+                          </div>
+                          {task.description && !isExpanded && (
+                            <p className="text-xs text-clara-text-muted mt-0.5 pl-3 truncate">
+                              {task.description}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-3 mt-1.5 pl-3">
+                            <span
+                              className={`text-xs flex items-center gap-1 ${
+                                isOverdue
+                                  ? "text-red-500 font-medium"
+                                  : "text-clara-text-muted"
+                              }`}
+                            >
+                              <Clock size={11} />
+                              {formatDueDate(task.due_at)}
+                            </span>
+                            <span className="text-xs text-clara-text-muted flex items-center gap-1">
+                              <ChannelIcon size={11} />
+                              {task.contact_name}
+                            </span>
+                          </div>
+                        </button>
                       </div>
+
+                      {/* Expandable detail */}
+                      <AnimatePresence>
+                        {isExpanded && <TaskDetail task={task} />}
+                      </AnimatePresence>
                     </motion.div>
                   );
                 })}
               </div>
             ) : (
               <div className="text-center py-12">
+                <div className="w-12 h-12 rounded-full bg-clara-warm-gray flex items-center justify-center mx-auto mb-3">
+                  <Mic size={20} className="text-clara-text-muted" />
+                </div>
                 <p className="text-clara-text-secondary text-sm">
-                  All caught up!
+                  No tasks yet.
                 </p>
                 <p className="text-clara-text-muted text-xs mt-1">
-                  Clara will add follow-ups as you log interactions.
+                  Record a voice note to create follow-ups.
                 </p>
               </div>
             )}
 
-            {/* Completed tasks */}
+            {/* Completed tasks — collapsible */}
             {completedTasks.length > 0 && (
               <div className="space-y-2">
-                <h2 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider px-1">
-                  Done
-                </h2>
-                {completedTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="clara-card p-4 flex items-center gap-3 opacity-50"
+                <button
+                  onClick={() => setDoneExpanded(!doneExpanded)}
+                  className="flex items-center gap-1.5 px-1 w-full text-left"
+                >
+                  <motion.span
+                    animate={{ rotate: doneExpanded ? 90 : 0 }}
+                    transition={{ duration: 0.15 }}
                   >
-                    <button
-                      onClick={() => toggleTask(task.id)}
-                      className="flex-shrink-0 w-5 h-5 rounded-full bg-clara-coral flex items-center justify-center"
+                    <ChevronRight size={14} className="text-clara-text-muted" />
+                  </motion.span>
+                  <h2 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
+                    Done ({completedTasks.length})
+                  </h2>
+                </button>
+
+                <AnimatePresence>
+                  {doneExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: "easeInOut" }}
+                      className="overflow-hidden space-y-2"
                     >
-                      <Check size={12} className="text-white" />
-                    </button>
-                    <p className="text-sm text-clara-text-secondary line-through">
-                      {task.title}
-                    </p>
-                  </div>
-                ))}
+                      {completedTasks.map((task) => {
+                        const isExpanded = expandedTaskId === task.id;
+
+                        return (
+                          <div
+                            key={task.id}
+                            className="clara-card p-4 opacity-60"
+                          >
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => uncompleteTask(task.id)}
+                                className="flex-shrink-0 w-6 h-6 rounded-full bg-clara-coral flex items-center justify-center active:opacity-70 transition-opacity"
+                                aria-label="Mark as pending"
+                              >
+                                <Check size={12} className="text-white" />
+                              </button>
+                              <button
+                                onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}
+                                className="flex-1 min-w-0 text-left"
+                              >
+                                <p className="text-sm text-clara-text-secondary line-through">
+                                  {task.title}
+                                </p>
+                                {task.contact_name && (
+                                  <p className="text-xs text-clara-text-muted mt-0.5">
+                                    {task.contact_name}
+                                  </p>
+                                )}
+                              </button>
+                            </div>
+
+                            <AnimatePresence>
+                              {isExpanded && <TaskDetail task={task} />}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
           </>
         )}
       </div>
+
+      {/* Undo toast */}
+      <UndoToast
+        visible={toastVisible}
+        onUndo={handleUndo}
+        onDismiss={clearToast}
+      />
     </div>
   );
 }
