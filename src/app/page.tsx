@@ -87,6 +87,18 @@ function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+
+  // Redirect to onboarding if first visit
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem("clara_onboarded")) {
+        router.replace("/onboarding");
+      }
+    } catch {
+      // localStorage unavailable — skip onboarding check
+    }
+  }, [router]);
+
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [askClaraText, setAskClaraText] = useState("");
   const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
