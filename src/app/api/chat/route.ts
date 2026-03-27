@@ -180,17 +180,17 @@ async function searchData(terms: string[], originalMessage: string) {
     }
   }
 
-  // Always load pending tasks — they're critical for follow-up/task questions
+  // Always load ALL tasks — pending for "what's on my plate", done for "did I follow up"
   const tasks: Record<string, unknown>[] = [];
-  const { data: pendingTasks } = await supabase
+  const { data: allTasks } = await supabase
     .from("tasks")
     .select("id, title, description, due_at, status, priority, channel, contact_id")
     .eq("user_id", DEMO_USER_ID)
-    .in("status", ["pending", "snoozed"])
     .order("due_at", { ascending: true, nullsFirst: false })
-    .limit(50);
+    .limit(100);
 
-  if (pendingTasks) {
+  if (allTasks) {
+    const pendingTasks = allTasks;
     // Enrich tasks with contact names
     const taskContactIds = [...new Set(
       pendingTasks
@@ -220,7 +220,88 @@ async function searchData(terms: string[], originalMessage: string) {
     }
   }
 
-  return { contacts, facts, interactions, tasks };
+  // Load contact relationships for all found contacts
+  const relationships: Record<string, unknown>[] = [];
+  if (contactIds.length > 0) {
+    const { data: rels } = await supabase
+      .from("contact_relationships")
+      .select("id, contact_id, related_contact_id, relationship_type, label")
+      .or(
+        contactIds.map((id) => `contact_id.eq.${id}`).join(",") +
+        "," +
+        contactIds.map((id) => `related_contact_id.eq.${id}`).join(",")
+      )
+      .limit(50);
+
+    if (rels) {
+      // Resolve names for both sides
+      const allRelContactIds = new Set<string>();
+      for (const r of rels) {
+        const rel = r as Record<string, unknown>;
+        allRelContactIds.add(rel.contact_id as string);
+        allRelContactIds.add(rel.related_contact_id as string);
+      }
+      const relIds = [...allRelContactIds];
+      let relNameLookup = new Map<string, string>();
+      if (relIds.length > 0) {
+        const { data: relContacts } = await supabase
+          .from("contacts")
+          .select("id, full_name")
+          .in("id", relIds);
+        if (relContacts) {
+          relNameLookup = new Map(
+            relContacts.map((c: Record<string, unknown>) => [c.id as string, c.full_name as string])
+          );
+        }
+      }
+      for (const r of rels) {
+        const rel = r as Record<string, unknown>;
+        rel.from_name = relNameLookup.get(rel.contact_id as string) || "Unknown";
+        rel.to_name = relNameLookup.get(rel.related_contact_id as string) || "Unknown";
+        relationships.push(rel);
+      }
+    }
+  }
+
+  // Enrich interactions with participant names via interaction_contacts
+  if (interactions.length > 0) {
+    const interactionIds = interactions.map((i) => i.id as string);
+    const { data: icLinks } = await supabase
+      .from("interaction_contacts")
+      .select("interaction_id, contact_id")
+      .in("interaction_id", interactionIds);
+
+    if (icLinks) {
+      const icContactIds = [...new Set(icLinks.map((ic: Record<string, unknown>) => ic.contact_id as string))];
+      let icNameLookup = new Map<string, string>();
+      if (icContactIds.length > 0) {
+        const { data: icContacts } = await supabase
+          .from("contacts")
+          .select("id, full_name")
+          .in("id", icContactIds);
+        if (icContacts) {
+          icNameLookup = new Map(
+            icContacts.map((c: Record<string, unknown>) => [c.id as string, c.full_name as string])
+          );
+        }
+      }
+      // Group participants by interaction
+      const participantMap = new Map<string, string[]>();
+      for (const ic of icLinks) {
+        const link = ic as Record<string, unknown>;
+        const iid = link.interaction_id as string;
+        const name = icNameLookup.get(link.contact_id as string) || "Unknown";
+        if (!participantMap.has(iid)) participantMap.set(iid, []);
+        participantMap.get(iid)!.push(name);
+      }
+      // Attach to interactions
+      for (const interaction of interactions) {
+        interaction.participants = participantMap.get(interaction.id as string) || [];
+      }
+    }
+  }
+
+  return { contacts, facts, interactions, tasks, relationships };
 }
 
 export async function POST(request: NextRequest) {
@@ -262,21 +343,46 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (sources.interactions.length > 0) {
-      dataContext += "\nRECENT INTERACTIONS:\n";
-      for (const i of sources.interactions) {
-        dataContext += `- ${i.occurred_at} (${i.interaction_type}, ${i.sentiment}): ${i.summary}\n`;
+    if (sources.relationships.length > 0) {
+      dataContext += "\nRELATIONSHIPS:\n";
+      for (const r of sources.relationships) {
+        const rel = r as Record<string, unknown>;
+        dataContext += `- ${rel.from_name} ↔ ${rel.to_name}: ${rel.relationship_type}`;
+        if (rel.label) dataContext += ` (${rel.label})`;
+        dataContext += "\n";
       }
     }
 
-    if (sources.tasks.length > 0) {
+    if (sources.interactions.length > 0) {
+      dataContext += "\nINTERACTION HISTORY:\n";
+      for (const i of sources.interactions) {
+        const participants = (i.participants as string[]) || [];
+        dataContext += `- ${i.occurred_at} (${i.interaction_type})`;
+        if (participants.length > 0) dataContext += ` with ${participants.join(", ")}`;
+        dataContext += `: ${i.summary}\n`;
+      }
+    }
+
+    const pendingTasks = sources.tasks.filter((t) => t.status === "pending" || t.status === "snoozed");
+    const doneTasks = sources.tasks.filter((t) => t.status === "done");
+
+    if (pendingTasks.length > 0) {
       dataContext += "\nPENDING TASKS & FOLLOW-UPS:\n";
-      for (const t of sources.tasks) {
+      for (const t of pendingTasks) {
         dataContext += `- [${t.priority || "medium"}] ${t.title}`;
         if ((t as Record<string, unknown>).contact_name) dataContext += ` (for ${(t as Record<string, unknown>).contact_name})`;
         if (t.due_at) dataContext += ` — due: ${t.due_at}`;
         if (t.channel) dataContext += ` via ${t.channel}`;
         if (t.status === "snoozed") dataContext += ` [snoozed]`;
+        dataContext += "\n";
+      }
+    }
+
+    if (doneTasks.length > 0) {
+      dataContext += "\nCOMPLETED TASKS:\n";
+      for (const t of doneTasks) {
+        dataContext += `- ✓ ${t.title}`;
+        if ((t as Record<string, unknown>).contact_name) dataContext += ` (for ${(t as Record<string, unknown>).contact_name})`;
         dataContext += "\n";
       }
     }
