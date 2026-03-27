@@ -1,11 +1,11 @@
 import { type NextRequest } from "next/server";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { CLARA_CHAT_PROMPT } from "@/lib/ai/prompts";
 import { supabase } from "@/lib/supabase/client";
 import { DEMO_USER_ID } from "@/lib/config";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "placeholder",
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY || "placeholder",
 });
 
 /**
@@ -303,9 +303,17 @@ async function searchData(terms: string[], originalMessage: string) {
   return { contacts, facts, interactions, tasks, relationships };
 }
 
+interface HistoryMessage {
+  role: "user" | "clara";
+  text: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { message } = await request.json();
+    const { message, history } = await request.json() as {
+      message: string;
+      history?: HistoryMessage[];
+    };
 
     if (!message || typeof message !== "string") {
       return Response.json(
@@ -390,29 +398,39 @@ export async function POST(request: NextRequest) {
       dataContext = "\n\nNo matching data found in the CRM for this query.";
     }
 
-    // Guard rail: truncate context to avoid blowing GPT-4o token limits
+    // Guard rail: truncate context to avoid blowing token limits
     const MAX_CONTEXT_CHARS = 6000;
     if (dataContext.length > MAX_CONTEXT_CHARS) {
       dataContext = dataContext.slice(0, MAX_CONTEXT_CHARS) + "\n\n[...truncated — too much data to include]";
     }
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+    // Build conversation messages with history
+    const messages: { role: "user" | "assistant"; content: string }[] = [];
+
+    // Include up to 10 recent history messages for context
+    if (history && Array.isArray(history)) {
+      const recentHistory = history.slice(-10);
+      for (const msg of recentHistory) {
+        messages.push({
+          role: msg.role === "clara" ? "assistant" : "user",
+          content: msg.text,
+        });
+      }
+    }
+
+    // Add the current message
+    messages.push({ role: "user", content: message });
+
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
       max_tokens: 1000,
-      messages: [
-        {
-          role: "system",
-          content: CLARA_CHAT_PROMPT + dataContext,
-        },
-        {
-          role: "user",
-          content: message,
-        },
-      ],
+      system: CLARA_CHAT_PROMPT + dataContext,
+      messages,
     });
 
     const responseText =
-      response.choices[0]?.message?.content || "Sorry, I couldn't process that. Try again?";
+      (response.content[0]?.type === "text" ? response.content[0].text : null)
+      || "Sorry, I couldn't process that. Try again?";
 
     // Build source references for the UI
     const sourceContacts = sources.contacts.map((c) => ({

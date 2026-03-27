@@ -106,6 +106,11 @@ export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
       text: text.trim(),
     };
 
+    // Build conversation history from existing messages (exclude welcome)
+    const history = messages
+      .filter((m) => m.id !== "welcome")
+      .map((m) => ({ role: m.role, text: m.text }));
+
     setMessages((prev) => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
@@ -114,7 +119,7 @@ export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text.trim() }),
+        body: JSON.stringify({ message: text.trim(), history }),
       });
 
       if (!res.ok) throw new Error("Chat request failed");
