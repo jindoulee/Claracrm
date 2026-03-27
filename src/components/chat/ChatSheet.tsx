@@ -24,9 +24,10 @@ interface ChatMessage {
 interface ChatSheetProps {
   isOpen: boolean;
   onClose: () => void;
+  initialMessage?: string;
 }
 
-export function ChatSheet({ isOpen, onClose }: ChatSheetProps) {
+export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -57,6 +58,10 @@ export function ChatSheet({ isOpen, onClose }: ChatSheetProps) {
       setTimeout(() => inputRef.current?.focus(), 400);
     }
   }, [isOpen]);
+
+  // Send initial message when sheet opens with one
+  const initialMessageSentRef = useRef<string | null>(null);
+  const sendMessageRef = useRef<((text: string) => Promise<void>) | null>(null);
 
   // Clean up speech recognition on unmount
   useEffect(() => {

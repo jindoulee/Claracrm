@@ -11,31 +11,69 @@ const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 /**
  * Extract key search terms from a user message.
- * Strips common stop words and returns meaningful terms.
+ * Strips common stop words but preserves proper nouns / names
+ * (words that start with a capital letter in the original message).
  */
 function extractSearchTerms(message: string): string[] {
   const stopWords = new Set([
     "a", "an", "the", "is", "are", "was", "were", "what", "who", "how",
     "when", "where", "why", "do", "does", "did", "can", "could", "would",
-    "should", "about", "tell", "me", "my", "i", "you", "know", "with",
+    "should", "tell", "me", "my", "i", "you", "with",
     "for", "from", "have", "has", "had", "this", "that", "these", "those",
-    "of", "in", "on", "at", "to", "and", "or", "but", "not", "any",
-    "all", "some", "much", "many", "more", "most", "last", "up", "out",
-    "just", "like", "also", "very", "really", "so", "too", "been", "being",
+    "of", "in", "on", "at", "to", "and", "or", "but", "not",
+    "up", "out", "also", "very", "really", "so", "too", "been", "being",
   ]);
 
-  return message
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "")
-    .split(/\s+/)
-    .filter((word) => word.length > 1 && !stopWords.has(word));
+  const words = message.replace(/[^\w\s]/g, "").split(/\s+/).filter(Boolean);
+
+  return words
+    .filter((word) => {
+      if (word.length <= 1) return false;
+      // Keep proper nouns (capitalized words) even if they are stop words
+      const isCapitalized = word[0] === word[0].toUpperCase() && word[0] !== word[0].toLowerCase();
+      if (isCapitalized) return true;
+      return !stopWords.has(word.toLowerCase());
+    })
+    .map((w) => w.toLowerCase());
 }
 
-async function searchData(terms: string[]) {
+/**
+ * Extract full names from a message — sequences of 2+ capitalized words.
+ * e.g. "Tell me about Brooklyn Lee" -> ["Brooklyn Lee"]
+ */
+function extractFullNames(message: string): string[] {
+  const matches = message.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g);
+  return matches || [];
+}
+
+async function searchData(terms: string[], originalMessage: string) {
   const contacts: Record<string, unknown>[] = [];
   const facts: Record<string, unknown>[] = [];
   const interactions: Record<string, unknown>[] = [];
 
+  // Helper to deduplicate by id
+  function addUnique(arr: Record<string, unknown>[], items: Record<string, unknown>[]) {
+    for (const item of items) {
+      if (!arr.find((existing) => existing.id === item.id)) {
+        arr.push(item);
+      }
+    }
+  }
+
+  // 1. Try searching by full names first (e.g. "Brooklyn Lee")
+  const fullNames = extractFullNames(originalMessage);
+  for (const name of fullNames) {
+    const pattern = `%${name}%`;
+    const { data: contactHits } = await supabase
+      .from("contacts")
+      .select("id, full_name, nickname, company, role, email, phone, relationship_strength, last_interaction_at")
+      .eq("user_id", DEMO_USER_ID)
+      .ilike("full_name", pattern)
+      .limit(5);
+    if (contactHits) addUnique(contacts, contactHits as Record<string, unknown>[]);
+  }
+
+  // 2. Search by individual terms
   for (const term of terms.slice(0, 5)) {
     const pattern = `%${term}%`;
 
@@ -49,13 +87,7 @@ async function searchData(terms: string[]) {
       )
       .limit(5);
 
-    if (contactHits) {
-      for (const c of contactHits) {
-        if (!contacts.find((existing) => (existing as Record<string, unknown>).id === (c as Record<string, unknown>).id)) {
-          contacts.push(c as Record<string, unknown>);
-        }
-      }
-    }
+    if (contactHits) addUnique(contacts, contactHits as Record<string, unknown>[]);
 
     // Search facts
     const { data: factHits } = await supabase
@@ -64,13 +96,7 @@ async function searchData(terms: string[]) {
       .ilike("fact", pattern)
       .limit(5);
 
-    if (factHits) {
-      for (const f of factHits) {
-        if (!facts.find((existing) => (existing as Record<string, unknown>).id === (f as Record<string, unknown>).id)) {
-          facts.push(f as Record<string, unknown>);
-        }
-      }
-    }
+    if (factHits) addUnique(facts, factHits as Record<string, unknown>[]);
 
     // Search interactions
     const { data: interactionHits } = await supabase
@@ -81,12 +107,40 @@ async function searchData(terms: string[]) {
       .order("occurred_at", { ascending: false })
       .limit(5);
 
-    if (interactionHits) {
-      for (const i of interactionHits) {
-        if (!interactions.find((existing) => (existing as Record<string, unknown>).id === (i as Record<string, unknown>).id)) {
-          interactions.push(i as Record<string, unknown>);
-        }
-      }
+    if (interactionHits) addUnique(interactions, interactionHits as Record<string, unknown>[]);
+  }
+
+  // 3. Fallback: if term-based search found nothing, load ALL contacts + facts
+  if (contacts.length === 0 && facts.length === 0 && interactions.length === 0) {
+    const { data: allContacts } = await supabase
+      .from("contacts")
+      .select("id, full_name, nickname, company, role, email, phone, relationship_strength, last_interaction_at")
+      .eq("user_id", DEMO_USER_ID)
+      .order("last_interaction_at", { ascending: false })
+      .limit(100);
+
+    if (allContacts && allContacts.length > 0) {
+      addUnique(contacts, allContacts as Record<string, unknown>[]);
+
+      // Load all facts for these contacts
+      const allContactIds = allContacts.map((c: Record<string, unknown>) => c.id as string);
+      const { data: allFacts } = await supabase
+        .from("contact_facts")
+        .select("id, contact_id, fact_type, fact")
+        .in("contact_id", allContactIds)
+        .limit(500);
+
+      if (allFacts) addUnique(facts, allFacts as Record<string, unknown>[]);
+
+      // Load recent interactions
+      const { data: recentInteractions } = await supabase
+        .from("interactions")
+        .select("id, interaction_type, summary, occurred_at, sentiment")
+        .eq("user_id", DEMO_USER_ID)
+        .order("occurred_at", { ascending: false })
+        .limit(20);
+
+      if (recentInteractions) addUnique(interactions, recentInteractions as Record<string, unknown>[]);
     }
   }
 
@@ -142,7 +196,7 @@ export async function POST(request: NextRequest) {
 
     // Extract search terms and fetch relevant data
     const terms = extractSearchTerms(message);
-    const sources = await searchData(terms);
+    const sources = await searchData(terms, message);
 
     // Build context for the AI
     let dataContext = "";

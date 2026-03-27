@@ -46,6 +46,20 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(data, { status: 201 });
 }
 
+export async function DELETE() {
+  const { error, count } = await supabase
+    .from("tasks")
+    .delete({ count: "exact" })
+    .eq("user_id", DEMO_USER_ID)
+    .eq("status", "done");
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ deleted: count });
+}
+
 export async function PATCH(req: NextRequest) {
   const { id, ...updates } = await req.json();
 

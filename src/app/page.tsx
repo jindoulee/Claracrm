@@ -19,6 +19,8 @@ import {
   MessageSquare,
   Users,
   Calendar,
+  Send,
+  Mic,
 } from "lucide-react";
 import type { VoiceProcessingResult } from "@/lib/supabase/types";
 import type { FollowUpQuestion } from "@/lib/ai/process-voice";
@@ -138,6 +140,8 @@ const fadeUp = {
 export default function HomePage() {
   const router = useRouter();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [askClaraText, setAskClaraText] = useState("");
+  const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingResult, setProcessingResult] =
     useState<VoiceProcessingResult | null>(null);
@@ -290,23 +294,62 @@ export default function HomePage() {
 
       <div className="flex-1 flex flex-col items-center px-5">
         {/* Voice recorder — hero section */}
-        <div className="flex flex-col items-center justify-center py-8 w-full">
-          <div className="flex items-center gap-4">
-            {/* Chat button */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setIsChatOpen(true)}
-              className="w-12 h-12 rounded-full bg-white border border-clara-border shadow-sm flex items-center justify-center text-clara-coral hover:shadow-md transition-shadow"
-              aria-label="Chat with Clara"
-            >
-              <MessageSquare size={20} />
-            </motion.button>
+        <div className="flex flex-col items-center justify-center py-8 w-full max-w-sm">
+          <VoiceRecorder
+            onTranscriptComplete={handleTranscriptComplete}
+            isProcessing={isProcessing}
+          />
 
-            <VoiceRecorder
-              onTranscriptComplete={handleTranscriptComplete}
-              isProcessing={isProcessing}
+          {/* "Ask Clara" input bar — opens chat */}
+          <form
+            className="mt-5 w-full flex items-center gap-2 rounded-full bg-white border border-clara-border shadow-sm px-4 py-2.5 focus-within:border-clara-coral focus-within:shadow-md transition-all"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const msg = askClaraText.trim();
+              if (msg) {
+                setInitialChatMessage(msg);
+                setAskClaraText("");
+              } else {
+                setInitialChatMessage(undefined);
+              }
+              setIsChatOpen(true);
+            }}
+          >
+            <input
+              type="text"
+              value={askClaraText}
+              onChange={(e) => setAskClaraText(e.target.value)}
+              placeholder="Ask Clara anything..."
+              className="flex-1 bg-transparent text-sm text-clara-text placeholder:text-clara-text-muted outline-none"
+              onFocus={() => {
+                if (!askClaraText.trim()) {
+                  setInitialChatMessage(undefined);
+                  setIsChatOpen(true);
+                }
+              }}
             />
-          </div>
+            {askClaraText.trim() ? (
+              <button
+                type="submit"
+                className="flex-shrink-0 w-8 h-8 rounded-full bg-clara-coral text-white flex items-center justify-center hover:bg-clara-coral/90 transition-colors"
+                aria-label="Send message to Clara"
+              >
+                <Send size={14} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setInitialChatMessage(undefined);
+                  setIsChatOpen(true);
+                }}
+                className="flex-shrink-0 w-8 h-8 rounded-full bg-clara-warm-gray text-clara-text-secondary flex items-center justify-center hover:bg-clara-coral hover:text-white transition-colors"
+                aria-label="Voice chat with Clara"
+              >
+                <Mic size={14} />
+              </button>
+            )}
+          </form>
         </div>
 
         {/* Dashboard sections */}
@@ -562,7 +605,7 @@ export default function HomePage() {
       </BottomSheet>
 
       {/* Chat with Clara */}
-      <ChatSheet isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <ChatSheet isOpen={isChatOpen} onClose={() => { setIsChatOpen(false); setInitialChatMessage(undefined); }} initialMessage={initialChatMessage} />
     </div>
   );
 }

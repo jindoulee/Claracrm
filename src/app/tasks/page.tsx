@@ -215,6 +215,10 @@ export default function TasksPage() {
   const [doneExpanded, setDoneExpanded] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
+  // Clear all done confirmation state
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
+
   // Undo toast state
   const [toastVisible, setToastVisible] = useState(false);
   const [lastCompletedTask, setLastCompletedTask] = useState<{ id: string; prevStatus: TaskData["status"] } | null>(null);
@@ -353,6 +357,21 @@ export default function TasksPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastCompletedTask, clearToast]);
 
+  const clearAllDone = async () => {
+    setIsClearing(true);
+    try {
+      const res = await fetch("/api/tasks", { method: "DELETE" });
+      if (res.ok) {
+        setTasks((prev) => prev.filter((t) => t.status !== "done"));
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setIsClearing(false);
+      setShowClearConfirm(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <Header
@@ -490,20 +509,50 @@ export default function TasksPage() {
             {/* Completed tasks — collapsible */}
             {completedTasks.length > 0 && (
               <div className="space-y-2">
-                <button
-                  onClick={() => setDoneExpanded(!doneExpanded)}
-                  className="flex items-center gap-1.5 px-1 w-full text-left"
-                >
-                  <motion.span
-                    animate={{ rotate: doneExpanded ? 90 : 0 }}
-                    transition={{ duration: 0.15 }}
+                <div className="flex items-center justify-between px-1">
+                  <button
+                    onClick={() => setDoneExpanded(!doneExpanded)}
+                    className="flex items-center gap-1.5 text-left"
                   >
-                    <ChevronRight size={14} className="text-clara-text-muted" />
-                  </motion.span>
-                  <h2 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
-                    Done ({completedTasks.length})
-                  </h2>
-                </button>
+                    <motion.span
+                      animate={{ rotate: doneExpanded ? 90 : 0 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <ChevronRight size={14} className="text-clara-text-muted" />
+                    </motion.span>
+                    <h2 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
+                      Done ({completedTasks.length})
+                    </h2>
+                  </button>
+
+                  {doneExpanded && !showClearConfirm && (
+                    <button
+                      onClick={() => setShowClearConfirm(true)}
+                      className="text-xs font-medium text-clara-coral active:opacity-70 transition-opacity"
+                    >
+                      Clear all
+                    </button>
+                  )}
+
+                  {doneExpanded && showClearConfirm && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-clara-text-muted">Clear all done tasks?</span>
+                      <button
+                        onClick={() => setShowClearConfirm(false)}
+                        className="text-xs font-medium text-clara-text-secondary active:opacity-70"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={clearAllDone}
+                        disabled={isClearing}
+                        className="text-xs font-medium text-clara-coral active:opacity-70 disabled:opacity-50"
+                      >
+                        {isClearing ? "Clearing..." : "Clear"}
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 <AnimatePresence>
                   {doneExpanded && (
