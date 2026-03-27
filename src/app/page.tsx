@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { VoiceRecorder } from "@/components/voice/VoiceRecorder";
@@ -9,7 +9,6 @@ import { SummaryCard } from "@/components/voice/SummaryCard";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { ChatSheet } from "@/components/chat/ChatSheet";
 import {
-  Heart,
   CalendarDays,
   Clock,
   Check,
@@ -24,6 +23,7 @@ import {
 } from "lucide-react";
 import type { VoiceProcessingResult } from "@/lib/supabase/types";
 import type { FollowUpQuestion } from "@/lib/ai/process-voice";
+import { hapticSuccess } from "@/lib/utils/haptics";
 
 // ---- Dashboard API response types ----
 
@@ -34,13 +34,6 @@ interface DashboardTask {
   priority: "low" | "medium" | "high";
   status: "pending" | "done" | "snoozed" | "cancelled";
   contact_name: string | null;
-}
-
-interface FadingRelationship {
-  id: string;
-  full_name: string;
-  relationship_strength: number;
-  last_interaction_at: string | null;
 }
 
 interface RecentInteraction {
@@ -83,18 +76,6 @@ function formatDueDate(date: string): string {
   return due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function strengthBarColor(strength: number): string {
-  if (strength >= 50) return "bg-clara-amber";
-  if (strength >= 30) return "bg-[#e8725c]";
-  return "bg-red-400";
-}
-
-function strengthTextColor(strength: number): string {
-  if (strength >= 50) return "text-clara-amber";
-  if (strength >= 30) return "text-[#e8725c]";
-  return "text-red-400";
-}
-
 function priorityDotColor(priority: "low" | "medium" | "high"): string {
   if (priority === "high") return "bg-red-400";
   if (priority === "medium") return "bg-clara-amber";
@@ -112,15 +93,6 @@ const typeIcons: Record<string, typeof Coffee> = {
   general: MessageSquare,
 };
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-}
-
 // ---- Stagger animation variants ----
 
 const staggerContainer = {
@@ -135,10 +107,11 @@ const fadeUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.35 } },
 };
 
-// ==== Page ====
+// ==== Inner Page (uses useSearchParams) ====
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [askClaraText, setAskClaraText] = useState("");
   const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
@@ -158,13 +131,21 @@ export default function HomePage() {
   } | null>(null);
 
   // Dashboard data
-  const [fadingRelationships, setFadingRelationships] = useState<
-    FadingRelationship[]
-  >([]);
   const [upcomingTasks, setUpcomingTasks] = useState<DashboardTask[]>([]);
   const [recentInteractions, setRecentInteractions] = useState<
     RecentInteraction[]
   >([]);
+
+  // Read chat query param on mount to open chat sheet with initial message
+  useEffect(() => {
+    const chatParam = searchParams.get("chat");
+    if (chatParam) {
+      setInitialChatMessage(chatParam);
+      setIsChatOpen(true);
+      // Clean up the URL
+      router.replace("/", { scroll: false });
+    }
+  }, [searchParams, router]);
 
   // Fetch dashboard data on mount
   useEffect(() => {
@@ -173,7 +154,6 @@ export default function HomePage() {
         const res = await fetch("/api/dashboard");
         if (!res.ok) return;
         const data = await res.json();
-        if (data.fadingRelationships) setFadingRelationships(data.fadingRelationships);
         if (data.upcomingTasks) setUpcomingTasks(data.upcomingTasks);
         if (data.recentInteractions) setRecentInteractions(data.recentInteractions);
       } catch {
@@ -235,6 +215,7 @@ export default function HomePage() {
         setFollowUpQuestions(data.followUpQuestions || []);
         setSummaryDbIds(data.dbIds || null);
         setShowSummary(true);
+        hapticSuccess();
 
         // Add to local timeline immediately for instant feedback
         if (data.result?.interaction) {
@@ -262,11 +243,16 @@ export default function HomePage() {
   );
 
   const handleQuestionAnswer = (question: FollowUpQuestion) => {
-    console.log("Answer question:", question);
     setFollowUpQuestions((prev) =>
       prev.filter((q) => q.chip_label !== question.chip_label)
     );
   };
+
+  const handleOpenChat = useCallback((message: string) => {
+    setShowSummary(false);
+    setInitialChatMessage(message);
+    setIsChatOpen(true);
+  }, []);
 
   const handleDismiss = () => {
     setShowSummary(false);
@@ -275,6 +261,7 @@ export default function HomePage() {
   };
 
   const handleCompleteTask = async (taskId: string) => {
+    hapticSuccess();
     // Optimistic update
     setUpcomingTasks((prev) => prev.filter((t) => t.id !== taskId));
     try {
@@ -287,6 +274,8 @@ export default function HomePage() {
       // If it fails, we already removed it optimistically — fine for MVP
     }
   };
+
+  const hasNoData = upcomingTasks.length === 0 && recentInteractions.length === 0;
 
   return (
     <div className="flex flex-col min-h-0">
@@ -354,8 +343,22 @@ export default function HomePage() {
 
         {/* Dashboard sections */}
         <div className="w-full max-w-sm space-y-6 pb-8">
-          {/* ---- Reconnect Section ---- */}
-          {fadingRelationships.length > 0 && (
+          {/* Consolidated empty state when user has no data */}
+          {hasNoData && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              className="text-center py-8 px-4"
+            >
+              <p className="text-sm text-clara-text-secondary">
+                Tell Clara about a recent conversation to get started.
+              </p>
+            </motion.div>
+          )}
+
+          {/* ---- Coming Up Section ---- */}
+          {upcomingTasks.length > 0 && (
             <motion.section
               initial="hidden"
               animate="show"
@@ -365,89 +368,10 @@ export default function HomePage() {
                 variants={fadeUp}
                 className="flex items-center gap-1.5 text-xs font-semibold text-clara-text-muted uppercase tracking-wider px-1 mb-3"
               >
-                <Heart size={13} className="text-clara-coral" />
-                Reconnect
+                <CalendarDays size={13} className="text-clara-blue" />
+                Coming up
               </motion.h2>
-              <motion.div
-                variants={fadeUp}
-                className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 scrollbar-hide"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-              >
-                {fadingRelationships.map((contact) => (
-                  <motion.div
-                    key={contact.id}
-                    variants={fadeUp}
-                    className="clara-card flex-shrink-0 w-32 p-3 flex flex-col items-center gap-2 text-center"
-                  >
-                    {/* Avatar */}
-                    <div className="w-10 h-10 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center">
-                      <span className="text-sm font-semibold">
-                        {getInitials(contact.full_name)}
-                      </span>
-                    </div>
 
-                    {/* Name */}
-                    <p className="text-sm font-medium text-clara-text truncate w-full">
-                      {contact.full_name}
-                    </p>
-
-                    {/* Strength bar */}
-                    <div className="w-full">
-                      <div className="h-1.5 rounded-full bg-clara-warm-gray overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all ${strengthBarColor(contact.relationship_strength)}`}
-                          style={{
-                            width: `${contact.relationship_strength}%`,
-                          }}
-                        />
-                      </div>
-                      <p
-                        className={`text-[10px] mt-0.5 font-medium ${strengthTextColor(contact.relationship_strength)}`}
-                      >
-                        {contact.relationship_strength}%
-                      </p>
-                    </div>
-
-                    {/* Time since last interaction */}
-                    <p className="text-[10px] text-clara-text-muted flex items-center gap-0.5">
-                      <Clock size={9} />
-                      {contact.last_interaction_at
-                        ? formatTimeAgo(contact.last_interaction_at)
-                        : "Never"}
-                    </p>
-                  </motion.div>
-                ))}
-              </motion.div>
-            </motion.section>
-          )}
-
-          {/* ---- Coming Up Section ---- */}
-          <motion.section
-            initial="hidden"
-            animate="show"
-            variants={staggerContainer}
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="flex items-center gap-1.5 text-xs font-semibold text-clara-text-muted uppercase tracking-wider px-1 mb-3"
-            >
-              <CalendarDays size={13} className="text-clara-blue" />
-              Coming up
-            </motion.h2>
-
-            {upcomingTasks.length === 0 ? (
-              <motion.div
-                variants={fadeUp}
-                className="text-center py-6 px-4"
-              >
-                <p className="text-sm text-clara-text-secondary">
-                  All clear! No upcoming tasks.
-                </p>
-                <p className="text-xs text-clara-text-muted mt-1">
-                  Clara will add follow-ups from your voice memos.
-                </p>
-              </motion.div>
-            ) : (
               <div className="space-y-2">
                 {upcomingTasks.map((task) => (
                   <motion.div
@@ -506,36 +430,24 @@ export default function HomePage() {
                   </motion.div>
                 ))}
               </div>
-            )}
-          </motion.section>
+            </motion.section>
+          )}
 
           {/* ---- Recent Activity Section ---- */}
-          <motion.section
-            initial="hidden"
-            animate="show"
-            variants={staggerContainer}
-          >
-            <motion.h2
-              variants={fadeUp}
-              className="flex items-center gap-1.5 text-xs font-semibold text-clara-text-muted uppercase tracking-wider px-1 mb-3"
+          {recentInteractions.length > 0 && (
+            <motion.section
+              initial="hidden"
+              animate="show"
+              variants={staggerContainer}
             >
-              <Clock size={13} className="text-clara-text-muted" />
-              Recent
-            </motion.h2>
-
-            {recentInteractions.length === 0 ? (
-              <motion.div
+              <motion.h2
                 variants={fadeUp}
-                className="text-center py-6 px-4"
+                className="flex items-center gap-1.5 text-xs font-semibold text-clara-text-muted uppercase tracking-wider px-1 mb-3"
               >
-                <p className="text-sm text-clara-text-secondary">
-                  No interactions yet.
-                </p>
-                <p className="text-xs text-clara-text-muted mt-1">
-                  Tap the mic to tell Clara about a recent conversation.
-                </p>
-              </motion.div>
-            ) : (
+                <Clock size={13} className="text-clara-text-muted" />
+                Recent
+              </motion.h2>
+
               <div className="space-y-2">
                 {recentInteractions.slice(0, 5).map((interaction) => {
                   const Icon =
@@ -586,8 +498,8 @@ export default function HomePage() {
                   );
                 })}
               </div>
-            )}
-          </motion.section>
+            </motion.section>
+          )}
         </div>
       </div>
 
@@ -599,6 +511,7 @@ export default function HomePage() {
             dbIds={summaryDbIds}
             followUpQuestions={followUpQuestions}
             onQuestionAnswer={handleQuestionAnswer}
+            onOpenChat={handleOpenChat}
             onDismiss={handleDismiss}
           />
         )}
@@ -607,5 +520,15 @@ export default function HomePage() {
       {/* Chat with Clara */}
       <ChatSheet isOpen={isChatOpen} onClose={() => { setIsChatOpen(false); setInitialChatMessage(undefined); }} initialMessage={initialChatMessage} />
     </div>
+  );
+}
+
+// ==== Page (wraps content in Suspense for useSearchParams) ====
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   );
 }

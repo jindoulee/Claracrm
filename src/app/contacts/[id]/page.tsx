@@ -22,6 +22,7 @@ import {
   Plus,
   Save,
 } from "lucide-react";
+import { hapticSuccess, hapticLight } from "@/lib/utils/haptics";
 
 // --- Helpers ---
 
@@ -218,6 +219,7 @@ export default function ContactDetailPage() {
         if (!res.ok) throw new Error("Failed to save");
         const updated = await res.json();
         setContact((prev) => (prev ? { ...prev, ...updated } : prev));
+        hapticSuccess();
       }
       setIsEditing(false);
     } catch {
@@ -232,6 +234,7 @@ export default function ContactDetailPage() {
       try {
         const res = await fetch(`/api/facts/${factId}`, { method: "DELETE" });
         if (res.ok) {
+          hapticLight();
           setContact((prev) =>
             prev ? { ...prev, facts: prev.facts.filter((f) => f.id !== factId) } : prev
           );
@@ -715,14 +718,14 @@ export default function ContactDetailPage() {
           >
             <div className="flex gap-2">
               <Link
-                href="/"
+                href={`/?chat=${encodeURIComponent(`Brief me on ${contact.full_name}`)}`}
                 className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow"
               >
                 <div className="w-9 h-9 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center">
                   <Mic size={16} />
                 </div>
                 <span className="text-xs font-medium text-clara-text">
-                  Log interaction
+                  Brief me
                 </span>
               </Link>
 

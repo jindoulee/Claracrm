@@ -17,7 +17,7 @@ import {
   Undo2,
   Mic,
 } from "lucide-react";
-import { hapticSuccess } from "@/lib/utils/haptics";
+import { hapticSuccess, hapticLight } from "@/lib/utils/haptics";
 
 interface TaskData {
   id: string;
@@ -352,6 +352,7 @@ export default function TasksPage() {
 
   const handleUndo = useCallback(() => {
     if (!lastCompletedTask) return;
+    hapticLight();
     uncompleteTask(lastCompletedTask.id);
     clearToast();
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -63,6 +63,20 @@ export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
   const initialMessageSentRef = useRef<string | null>(null);
   const sendMessageRef = useRef<((text: string) => Promise<void>) | null>(null);
 
+  useEffect(() => {
+    if (isOpen && initialMessage && initialMessage !== initialMessageSentRef.current) {
+      initialMessageSentRef.current = initialMessage;
+      // Small delay to let sheet animate open
+      const timer = setTimeout(() => {
+        sendMessageRef.current?.(initialMessage);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+    if (!isOpen) {
+      initialMessageSentRef.current = null;
+    }
+  }, [isOpen, initialMessage]);
+
   // Clean up speech recognition on unmount
   useEffect(() => {
     return () => {
@@ -117,6 +131,9 @@ export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
       setIsLoading(false);
     }
   };
+
+  // Keep ref in sync so the initialMessage effect can call sendMessage
+  sendMessageRef.current = sendMessage;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

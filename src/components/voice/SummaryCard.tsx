@@ -31,6 +31,7 @@ interface SummaryCardProps {
   dbIds: DbIds | null;
   followUpQuestions: FollowUpQuestion[];
   onQuestionAnswer: (question: FollowUpQuestion) => void;
+  onOpenChat?: (message: string) => void;
   onDismiss: () => void;
 }
 
@@ -229,6 +230,7 @@ export function SummaryCard({
   dbIds,
   followUpQuestions,
   onQuestionAnswer,
+  onOpenChat,
   onDismiss,
 }: SummaryCardProps) {
   const { interaction, contacts, follow_ups, facts_learned, matchInfo } = result;
@@ -453,6 +455,9 @@ export function SummaryCard({
                 onClick={() => {
                   hapticLight();
                   onQuestionAnswer(q);
+                  if (onOpenChat) {
+                    onOpenChat(q.full_question);
+                  }
                 }}
                 className="clara-chip text-xs"
               >
