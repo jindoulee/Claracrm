@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -8,7 +8,6 @@ import {
   Lightbulb,
   Users,
   MessageSquare,
-  Plus,
   Phone,
   Mail,
   Coffee,
@@ -20,151 +19,6 @@ import {
   Minus,
   TrendingDown,
 } from "lucide-react";
-
-// --- Demo Data (Alan Chen, id "1") ---
-
-const DEMO_CONTACT = {
-  id: "1",
-  user_id: "demo",
-  full_name: "Alan Chen",
-  nickname: null,
-  email: "alan.chen@techcorp.com",
-  phone: "+1 (415) 555-0132",
-  company: "TechCorp",
-  role: "VP Engineering",
-  avatar_url: null,
-  notes: "Met at React Conf 2025. Very into climbing and specialty coffee.",
-  tags: ["friend", "tech", "climbing"],
-  relationship_strength: 75,
-  last_interaction_at: new Date(Date.now() - 86400000).toISOString(),
-  metadata: {},
-  created_at: new Date(Date.now() - 86400000 * 120).toISOString(),
-  updated_at: new Date(Date.now() - 86400000).toISOString(),
-};
-
-const DEMO_FACTS = [
-  {
-    id: "f1",
-    contact_id: "1",
-    fact_type: "family",
-    fact: "Wife's name is Michelle, they have a 3-year-old daughter named Lily",
-    source_interaction_id: null,
-    confidence: 0.95,
-    valid_from: new Date(Date.now() - 86400000 * 90).toISOString(),
-    valid_until: null,
-    created_at: new Date(Date.now() - 86400000 * 90).toISOString(),
-  },
-  {
-    id: "f2",
-    contact_id: "1",
-    fact_type: "work",
-    fact: "Leading the migration from monolith to microservices at TechCorp",
-    source_interaction_id: null,
-    confidence: 0.9,
-    valid_from: new Date(Date.now() - 86400000 * 60).toISOString(),
-    valid_until: null,
-    created_at: new Date(Date.now() - 86400000 * 60).toISOString(),
-  },
-  {
-    id: "f3",
-    contact_id: "1",
-    fact_type: "interest",
-    fact: "Trains for bouldering competitions, goes to Movement Gym on weekends",
-    source_interaction_id: null,
-    confidence: 0.85,
-    valid_from: new Date(Date.now() - 86400000 * 45).toISOString(),
-    valid_until: null,
-    created_at: new Date(Date.now() - 86400000 * 45).toISOString(),
-  },
-  {
-    id: "f4",
-    contact_id: "1",
-    fact_type: "interest",
-    fact: "Obsessed with pour-over coffee, owns a Comandante grinder",
-    source_interaction_id: null,
-    confidence: 0.8,
-    valid_from: new Date(Date.now() - 86400000 * 30).toISOString(),
-    valid_until: null,
-    created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
-  },
-  {
-    id: "f5",
-    contact_id: "1",
-    fact_type: "health",
-    fact: "Training for a half-marathon in April",
-    source_interaction_id: null,
-    confidence: 0.75,
-    valid_from: new Date(Date.now() - 86400000 * 10).toISOString(),
-    valid_until: null,
-    created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-  },
-];
-
-const DEMO_RELATIONSHIPS = [
-  {
-    id: "r1",
-    contact_id: "1",
-    related_contact_id: "10",
-    relationship_type: "spouse",
-    label: "Wife",
-    related_name: "Michelle Chen",
-  },
-  {
-    id: "r2",
-    contact_id: "1",
-    related_contact_id: "11",
-    relationship_type: "child",
-    label: "Daughter",
-    related_name: "Lily Chen",
-  },
-  {
-    id: "r3",
-    contact_id: "1",
-    related_contact_id: "2",
-    relationship_type: "colleague",
-    label: "Works with",
-    related_name: "Sarah Kim",
-  },
-];
-
-const DEMO_INTERACTIONS = [
-  {
-    id: "i1",
-    interaction_type: "coffee",
-    summary:
-      "Grabbed coffee at Blue Bottle. Alan mentioned he's training for a half-marathon and the microservices migration is ahead of schedule.",
-    occurred_at: new Date(Date.now() - 86400000).toISOString(),
-    sentiment: "positive",
-    contacts: [{ full_name: "Alan Chen" }],
-  },
-  {
-    id: "i2",
-    interaction_type: "call",
-    summary:
-      "Quick call to catch up. He's excited about Lily starting preschool next month. Asked about my startup progress.",
-    occurred_at: new Date(Date.now() - 86400000 * 8).toISOString(),
-    sentiment: "positive",
-    contacts: [{ full_name: "Alan Chen" }],
-  },
-  {
-    id: "i3",
-    interaction_type: "meeting",
-    summary:
-      "Ran into Alan and Sarah at the TechCrunch meetup. Discussed potential collaboration between our teams.",
-    occurred_at: new Date(Date.now() - 86400000 * 21).toISOString(),
-    sentiment: "neutral",
-    contacts: [{ full_name: "Alan Chen" }, { full_name: "Sarah Kim" }],
-  },
-  {
-    id: "i4",
-    interaction_type: "text",
-    summary:
-      "Sent him the link to that climbing documentary. He replied with some coffee bean recommendations.",
-    occurred_at: new Date(Date.now() - 86400000 * 35).toISOString(),
-    sentiment: "positive",
-    contacts: [{ full_name: "Alan Chen" }],
-  },
-];
 
 // --- Helpers ---
 
@@ -206,6 +60,8 @@ const factTypeBadgeColors: Record<string, string> = {
   work: "bg-clara-blue-light text-clara-blue",
   interest: "bg-clara-green-light text-clara-green",
   health: "bg-clara-coral-light text-clara-coral",
+  personal: "bg-clara-purple-light text-clara-purple",
+  preference: "bg-clara-green-light text-clara-green",
 };
 
 const typeIcons: Record<string, typeof Coffee> = {
@@ -217,6 +73,7 @@ const typeIcons: Record<string, typeof Coffee> = {
   dinner: Calendar,
   lunch: Calendar,
   general: MessageSquare,
+  voice_note: Mic,
 };
 
 function formatTimeAgo(date: string): string {
@@ -234,6 +91,46 @@ function formatTimeAgo(date: string): string {
   return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+// --- Types ---
+
+interface ContactDetail {
+  id: string;
+  full_name: string;
+  nickname: string | null;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  role: string | null;
+  avatar_url: string | null;
+  notes: string | null;
+  tags: string[] | null;
+  relationship_strength: number | null;
+  last_interaction_at: string | null;
+  created_at: string;
+  facts: {
+    id: string;
+    fact_type: string;
+    fact: string;
+    confidence: number;
+    created_at: string;
+  }[];
+  relationships: {
+    id: string;
+    contact_id: string;
+    related_contact_id: string;
+    relationship_type: string;
+    label: string | null;
+    related_name: string;
+  }[];
+  interactions: {
+    id: string;
+    interaction_type: string;
+    summary: string | null;
+    occurred_at: string;
+    sentiment: string | null;
+  }[];
+}
+
 // --- Page Component ---
 
 export default function ContactDetailPage({
@@ -242,14 +139,80 @@ export default function ContactDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = React.use(params);
+  const [contact, setContact] = useState<ContactDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // In a real app, fetch contact by id. For now, use demo data.
-  const contact = DEMO_CONTACT;
-  const facts = DEMO_FACTS;
-  const relationships = DEMO_RELATIONSHIPS;
-  const interactions = DEMO_INTERACTIONS;
+  useEffect(() => {
+    async function fetchContact() {
+      try {
+        const res = await fetch(`/api/contacts/${id}`);
+        if (!res.ok) throw new Error("Contact not found");
+        const data = await res.json();
+        setContact(data);
+      } catch (err) {
+        setError("Could not load contact");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchContact();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <header className="sticky top-0 z-40 bg-clara-cream/90 backdrop-blur-lg safe-top">
+          <div className="flex items-center gap-3 px-5 h-14 max-w-lg mx-auto">
+            <Link
+              href="/contacts"
+              className="flex items-center justify-center w-8 h-8 -ml-1 rounded-full hover:bg-clara-warm-gray transition-colors"
+            >
+              <ArrowLeft size={20} className="text-clara-text" />
+            </Link>
+            <h1 className="text-lg font-semibold text-clara-text tracking-tight">
+              Loading...
+            </h1>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="inline-block w-6 h-6 border-2 border-clara-coral border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !contact) {
+    return (
+      <div className="flex flex-col h-full">
+        <header className="sticky top-0 z-40 bg-clara-cream/90 backdrop-blur-lg safe-top">
+          <div className="flex items-center gap-3 px-5 h-14 max-w-lg mx-auto">
+            <Link
+              href="/contacts"
+              className="flex items-center justify-center w-8 h-8 -ml-1 rounded-full hover:bg-clara-warm-gray transition-colors"
+            >
+              <ArrowLeft size={20} className="text-clara-text" />
+            </Link>
+            <h1 className="text-lg font-semibold text-clara-text tracking-tight">
+              Not Found
+            </h1>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center px-5">
+          <p className="text-clara-text-secondary text-sm text-center">
+            {error || "Contact not found"}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const initials = getInitials(contact.full_name);
+  const tags = contact.tags || [];
+  const strength = contact.relationship_strength ?? 50;
+  const facts = contact.facts || [];
+  const relationships = contact.relationships || [];
+  const interactions = contact.interactions || [];
 
   return (
     <div className="flex flex-col h-full">
@@ -321,9 +284,9 @@ export default function ContactDetailPage({
           </div>
 
           {/* Tags */}
-          {contact.tags.length > 0 && (
+          {tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3 justify-center">
-              {contact.tags.map((tag) => (
+              {tags.map((tag) => (
                 <span
                   key={tag}
                   className="text-xs px-2.5 py-1 rounded-full bg-clara-warm-gray text-clara-text-secondary"
@@ -338,159 +301,181 @@ export default function ContactDetailPage({
           <div className="mt-4 flex flex-col items-center gap-1.5">
             <div className="flex items-center gap-1.5">
               <span
-                className={`flex items-center gap-1 text-sm font-semibold ${strengthColor(contact.relationship_strength)}`}
+                className={`flex items-center gap-1 text-sm font-semibold ${strengthColor(strength)}`}
               >
-                <StrengthIcon strength={contact.relationship_strength} />
-                {contact.relationship_strength}
+                <StrengthIcon strength={strength} />
+                {strength}
               </span>
               <span className="text-xs text-clara-text-muted">
-                — {strengthLabel(contact.relationship_strength)}
+                — {strengthLabel(strength)}
               </span>
             </div>
             <div className="w-40 h-1.5 bg-clara-warm-gray rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
-                animate={{ width: `${contact.relationship_strength}%` }}
+                animate={{ width: `${strength}%` }}
                 transition={{ delay: 0.3, duration: 0.6, ease: "easeOut" }}
-                className={`h-full rounded-full ${strengthBgColor(contact.relationship_strength)}`}
+                className={`h-full rounded-full ${strengthBgColor(strength)}`}
               />
             </div>
           </div>
         </motion.section>
 
         {/* ===== Clara Remembers ===== */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <Lightbulb size={16} className="text-clara-amber" />
-            <h3 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
-              Clara remembers
-            </h3>
-          </div>
-          <div className="space-y-2">
-            {facts.map((fact, i) => (
-              <motion.div
-                key={fact.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 + i * 0.04 }}
-                className="clara-card p-3.5 flex gap-3 items-start"
-              >
-                <span
-                  className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${
-                    factTypeBadgeColors[fact.fact_type] ||
-                    "bg-clara-warm-gray text-clara-text-secondary"
-                  }`}
-                >
-                  {fact.fact_type}
-                </span>
-                <p className="text-sm text-clara-text leading-relaxed">
-                  {fact.fact}
-                </p>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* ===== Relationships ===== */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <Users size={16} className="text-clara-blue" />
-            <h3 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
-              Relationships
-            </h3>
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {relationships.map((rel, i) => (
-              <motion.div
-                key={rel.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.25 + i * 0.05 }}
-                className="clara-card p-3 flex flex-col items-center gap-2 min-w-[110px] flex-shrink-0"
-              >
-                <div className="w-10 h-10 rounded-full bg-clara-blue-light text-clara-blue flex items-center justify-center">
-                  <span className="text-xs font-semibold">
-                    {getInitials(rel.related_name)}
-                  </span>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-medium text-clara-text truncate max-w-[90px]">
-                    {rel.related_name}
-                  </p>
-                  <p className="text-[10px] text-clara-text-muted mt-0.5">
-                    {rel.label}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* ===== Interaction History ===== */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <MessageSquare size={16} className="text-clara-coral" />
-            <h3 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
-              Interaction History
-            </h3>
-          </div>
-          <div className="space-y-2">
-            {interactions.map((interaction, i) => {
-              const Icon =
-                typeIcons[interaction.interaction_type] || MessageSquare;
-              return (
+        {facts.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <Lightbulb size={16} className="text-clara-amber" />
+              <h3 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
+                Clara remembers
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {facts.map((fact, i) => (
                 <motion.div
-                  key={interaction.id}
+                  key={fact.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 + i * 0.05 }}
-                  className="clara-card p-4 flex gap-3"
+                  transition={{ delay: 0.15 + i * 0.04 }}
+                  className="clara-card p-3.5 flex gap-3 items-start"
                 >
-                  <div
-                    className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
-                      interaction.sentiment === "positive"
-                        ? "bg-clara-green-light text-clara-green"
-                        : interaction.sentiment === "negative"
-                          ? "bg-red-50 text-red-400"
-                          : "bg-clara-warm-gray text-clara-text-secondary"
+                  <span
+                    className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 ${
+                      factTypeBadgeColors[fact.fact_type] ||
+                      "bg-clara-warm-gray text-clara-text-secondary"
                     }`}
                   >
-                    <Icon size={16} />
+                    {fact.fact_type}
+                  </span>
+                  <p className="text-sm text-clara-text leading-relaxed">
+                    {fact.fact}
+                  </p>
+                </motion.div>
+              ))}
+            </div>
+          </motion.section>
+        )}
+
+        {/* ===== Relationships ===== */}
+        {relationships.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <Users size={16} className="text-clara-blue" />
+              <h3 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
+                Relationships
+              </h3>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {relationships.map((rel, i) => (
+                <motion.div
+                  key={rel.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.25 + i * 0.05 }}
+                  className="clara-card p-3 flex flex-col items-center gap-2 min-w-[110px] flex-shrink-0"
+                >
+                  <div className="w-10 h-10 rounded-full bg-clara-blue-light text-clara-blue flex items-center justify-center">
+                    <span className="text-xs font-semibold">
+                      {getInitials(rel.related_name)}
+                    </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-clara-text truncate">
-                        {interaction.contacts
-                          .map((c) => c.full_name)
-                          .join(", ")}
-                      </p>
-                      <span className="text-xs text-clara-text-muted flex-shrink-0">
-                        {formatTimeAgo(interaction.occurred_at)}
-                      </span>
-                    </div>
-                    {interaction.summary && (
-                      <p className="text-xs text-clara-text-secondary mt-0.5 line-clamp-2">
-                        {interaction.summary}
-                      </p>
-                    )}
+                  <div className="text-center">
+                    <p className="text-xs font-medium text-clara-text truncate max-w-[90px]">
+                      {rel.related_name}
+                    </p>
+                    <p className="text-[10px] text-clara-text-muted mt-0.5">
+                      {rel.label || rel.relationship_type}
+                    </p>
                   </div>
                 </motion.div>
-              );
-            })}
-          </div>
-        </motion.section>
+              ))}
+            </div>
+          </motion.section>
+        )}
+
+        {/* ===== Interaction History ===== */}
+        {interactions.length > 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <MessageSquare size={16} className="text-clara-coral" />
+              <h3 className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider">
+                Interaction History
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {interactions.map((interaction, i) => {
+                const Icon =
+                  typeIcons[interaction.interaction_type] || MessageSquare;
+                return (
+                  <motion.div
+                    key={interaction.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35 + i * 0.05 }}
+                    className="clara-card p-4 flex gap-3"
+                  >
+                    <div
+                      className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${
+                        interaction.sentiment === "positive"
+                          ? "bg-clara-green-light text-clara-green"
+                          : interaction.sentiment === "negative"
+                            ? "bg-red-50 text-red-400"
+                            : "bg-clara-warm-gray text-clara-text-secondary"
+                      }`}
+                    >
+                      <Icon size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-clara-text capitalize">
+                          {interaction.interaction_type.replace("_", " ")}
+                        </p>
+                        <span className="text-xs text-clara-text-muted flex-shrink-0">
+                          {formatTimeAgo(interaction.occurred_at)}
+                        </span>
+                      </div>
+                      {interaction.summary && (
+                        <p className="text-xs text-clara-text-secondary mt-0.5 line-clamp-2">
+                          {interaction.summary}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.section>
+        )}
+
+        {/* Empty state when no facts or interactions yet */}
+        {facts.length === 0 && interactions.length === 0 && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-center py-8"
+          >
+            <Lightbulb size={32} className="text-clara-text-muted mx-auto mb-3" />
+            <p className="text-sm text-clara-text-secondary">
+              Clara doesn&apos;t know much about {contact.full_name} yet.
+            </p>
+            <p className="text-xs text-clara-text-muted mt-1">
+              Record a voice note to add details.
+            </p>
+          </motion.section>
+        )}
 
         {/* ===== Quick Actions ===== */}
         <motion.section
