@@ -357,6 +357,56 @@ export async function createContactRelationship(data: {
 }
 
 // ============================================
+// RELATIONSHIP STRENGTH
+// ============================================
+
+export async function boostRelationshipStrength(
+  contactId: string,
+  boost: number = 10
+) {
+  const { error } = await supabase.rpc("boost_relationship_strength", {
+    p_contact_id: contactId,
+    p_boost: boost,
+  });
+
+  if (error) {
+    console.error("Failed to boost relationship strength:", error);
+    throw error;
+  }
+}
+
+export async function getDecayingContacts(userId: string = DEMO_USER_ID) {
+  const fourteenDaysAgo = new Date(
+    Date.now() - 14 * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .select("*")
+    .eq("user_id", userId)
+    .or(`relationship_strength.lt.40,last_interaction_at.lt.${fourteenDaysAgo}`)
+    .order("relationship_strength", { ascending: true })
+    .limit(5);
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getFadingRelationships(userId: string = DEMO_USER_ID) {
+  const { data, error } = await supabase
+    .from("contacts")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("relationship_strength", 20)
+    .lte("relationship_strength", 50)
+    .order("relationship_strength", { ascending: true })
+    .limit(5);
+
+  if (error) throw error;
+  return data;
+}
+
+// ============================================
 // UTILITIES
 // ============================================
 

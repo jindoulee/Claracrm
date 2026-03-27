@@ -11,6 +11,7 @@ import {
   createContactRelationship,
   createTask,
   calculateDueDate,
+  boostRelationshipStrength,
 } from "@/lib/supabase/queries";
 import type { ContactMatchInfo } from "@/lib/supabase/types";
 
@@ -117,6 +118,15 @@ export async function POST(req: NextRequest) {
           dbIds.contactIds
         );
         dbIds.interactionId = interaction.id as string;
+
+        // Boost relationship strength for all contacts in this interaction
+        for (const contactId of dbIds.contactIds) {
+          try {
+            await boostRelationshipStrength(contactId, 15);
+          } catch {
+            console.error("Failed to boost strength for contact:", contactId);
+          }
+        }
       }
 
       // Create contact facts
