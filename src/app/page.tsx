@@ -26,6 +26,7 @@ import type { FollowUpQuestion } from "@/lib/ai/process-voice";
 import { hapticSuccess } from "@/lib/utils/haptics";
 import { formatTimeAgo, formatDueDate } from "@/lib/utils/format";
 import { useToast } from "@/components/ui/Toast";
+import { HomeSkeleton } from "@/components/ui/Skeleton";
 
 // ---- Dashboard API response types ----
 
@@ -109,6 +110,7 @@ function HomePageContent() {
   const [recentInteractions, setRecentInteractions] = useState<
     RecentInteraction[]
   >([]);
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
 
   // Read chat query param on mount to open chat sheet with initial message
   useEffect(() => {
@@ -132,6 +134,8 @@ function HomePageContent() {
         if (data.recentInteractions) setRecentInteractions(data.recentInteractions);
       } catch {
         // Silently fail — sections will show empty states
+      } finally {
+        setIsDashboardLoading(false);
       }
     }
     fetchDashboard();
@@ -324,8 +328,11 @@ function HomePageContent() {
 
         {/* Dashboard sections */}
         <div className="w-full max-w-sm space-y-6 pb-8">
+          {/* Skeleton while loading */}
+          {isDashboardLoading && <HomeSkeleton />}
+
           {/* Consolidated empty state when user has no data */}
-          {hasNoData && (
+          {!isDashboardLoading && hasNoData && (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}

@@ -25,6 +25,7 @@ import { formatTimeAgo } from "@/lib/utils/format";
 import { ChatSheet } from "@/components/chat/ChatSheet";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { useToast } from "@/components/ui/Toast";
+import { ContactDetailSkeleton } from "@/components/ui/Skeleton";
 
 // --- Helpers ---
 
@@ -302,14 +303,9 @@ export default function ContactDetailPage() {
             >
               <ArrowLeft size={20} className="text-clara-text" />
             </Link>
-            <h1 className="text-lg font-semibold text-clara-text tracking-tight">
-              Loading...
-            </h1>
           </div>
         </header>
-        <div className="flex-1 flex items-center justify-center">
-          <div className="inline-block w-6 h-6 border-2 border-clara-coral border-t-transparent rounded-full animate-spin" />
-        </div>
+        <ContactDetailSkeleton />
       </div>
     );
   }

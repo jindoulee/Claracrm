@@ -18,6 +18,7 @@ import {
   Mic,
 } from "lucide-react";
 import { hapticSuccess, hapticLight } from "@/lib/utils/haptics";
+import { TaskListSkeleton } from "@/components/ui/Skeleton";
 
 interface TaskData {
   id: string;
@@ -383,10 +384,7 @@ export default function TasksPage() {
       <div className="px-5 space-y-6 pb-32">
         {/* Loading state */}
         {isLoading ? (
-          <div className="text-center py-12">
-            <div className="inline-block w-6 h-6 border-2 border-clara-coral border-t-transparent rounded-full animate-spin" />
-            <p className="text-clara-text-muted text-sm mt-3">Loading tasks...</p>
-          </div>
+          <TaskListSkeleton />
         ) : (
           <>
             {/* Pending tasks */}

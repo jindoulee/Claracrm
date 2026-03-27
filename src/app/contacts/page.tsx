@@ -8,6 +8,7 @@ import { ContactCard } from "@/components/contacts/ContactCard";
 import { ImportSheet } from "@/components/contacts/ImportSheet";
 import { Search, Upload, Users, AlertCircle, CheckCircle } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { ContactListSkeleton } from "@/components/ui/Skeleton";
 
 
 interface ContactData {
@@ -178,10 +179,7 @@ function ContactsPageContent() {
 
         {/* Loading state */}
         {isLoading ? (
-          <div className="text-center py-12">
-            <div className="inline-block w-6 h-6 border-2 border-clara-coral border-t-transparent rounded-full animate-spin" />
-            <p className="text-clara-text-muted text-sm mt-3">Loading contacts...</p>
-          </div>
+          <ContactListSkeleton />
         ) : error ? (
           <div className="text-center py-16 px-4">
             <AlertCircle size={32} className="text-red-300 mx-auto mb-3" />
