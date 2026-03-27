@@ -1,7 +1,6 @@
 import { type NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+import { DEMO_USER_ID } from "@/lib/config";
 
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q");

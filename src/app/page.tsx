@@ -24,6 +24,8 @@ import {
 import type { VoiceProcessingResult } from "@/lib/supabase/types";
 import type { FollowUpQuestion } from "@/lib/ai/process-voice";
 import { hapticSuccess } from "@/lib/utils/haptics";
+import { formatTimeAgo, formatDueDate } from "@/lib/utils/format";
+import { useToast } from "@/components/ui/Toast";
 
 // ---- Dashboard API response types ----
 
@@ -46,35 +48,6 @@ interface RecentInteraction {
 }
 
 // ---- Helpers ----
-
-function formatTimeAgo(date: string): string {
-  const now = new Date();
-  const then = new Date(date);
-  const diffMs = now.getTime() - then.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-  return `${Math.floor(diffDays / 30)}mo ago`;
-}
-
-function formatDueDate(date: string): string {
-  const now = new Date();
-  const due = new Date(date);
-  const diffMs = due.getTime() - now.getTime();
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffDays < 0) return "Overdue";
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Tomorrow";
-  if (diffDays <= 7) return `In ${diffDays} days`;
-  return due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 function priorityDotColor(priority: "low" | "medium" | "high"): string {
   if (priority === "high") return "bg-red-400";
@@ -112,6 +85,7 @@ const fadeUp = {
 function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [askClaraText, setAskClaraText] = useState("");
   const [initialChatMessage, setInitialChatMessage] = useState<string | undefined>(undefined);
@@ -233,8 +207,8 @@ function HomePageContent() {
             ...prev,
           ]);
         }
-      } catch (error) {
-        console.error("Failed to process voice memo:", error);
+      } catch {
+        showToast("Couldn't process that. Try recording again?", "error");
       } finally {
         setIsProcessing(false);
       }
@@ -255,23 +229,30 @@ function HomePageContent() {
   }, []);
 
   const handleDismiss = () => {
+    const hadResult = processingResult !== null;
     setShowSummary(false);
     setProcessingResult(null);
     setFollowUpQuestions([]);
+    if (hadResult) {
+      showToast("Saved. Clara will remember this.");
+    }
   };
 
   const handleCompleteTask = async (taskId: string) => {
     hapticSuccess();
+    const prev = upcomingTasks;
     // Optimistic update
-    setUpcomingTasks((prev) => prev.filter((t) => t.id !== taskId));
+    setUpcomingTasks((tasks) => tasks.filter((t) => t.id !== taskId));
     try {
-      await fetch(`/api/tasks/${taskId}`, {
+      const res = await fetch("/api/tasks", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "done" }),
+        body: JSON.stringify({ id: taskId, status: "done" }),
       });
+      if (!res.ok) throw new Error("Failed");
     } catch {
-      // If it fails, we already removed it optimistically — fine for MVP
+      setUpcomingTasks(prev);
+      showToast("Couldn't complete task. Try again?", "error");
     }
   };
 
@@ -349,10 +330,14 @@ function HomePageContent() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35 }}
-              className="text-center py-8 px-4"
+              className="text-center py-6 px-4"
             >
-              <p className="text-sm text-clara-text-secondary">
-                Tell Clara about a recent conversation to get started.
+              <p className="text-sm text-clara-text font-medium">
+                Welcome to Clara
+              </p>
+              <p className="text-xs text-clara-text-muted mt-1.5 max-w-[240px] mx-auto leading-relaxed">
+                Tap the mic above and tell Clara about a recent conversation.
+                She&apos;ll remember the people, details, and follow-ups for you.
               </p>
             </motion.div>
           )}

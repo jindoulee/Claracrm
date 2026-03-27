@@ -494,15 +494,13 @@ export default function TasksPage() {
                 </AnimatePresence>
               </div>
             ) : (
-              <div className="text-center py-12">
-                <div className="w-12 h-12 rounded-full bg-clara-warm-gray flex items-center justify-center mx-auto mb-3">
-                  <Mic size={20} className="text-clara-text-muted" />
-                </div>
-                <p className="text-clara-text-secondary text-sm">
-                  No tasks yet.
+              <div className="text-center py-16 px-4">
+                <Check size={32} className="text-clara-green/30 mx-auto mb-4" />
+                <p className="text-sm font-medium text-clara-text">
+                  All caught up
                 </p>
-                <p className="text-clara-text-muted text-xs mt-1">
-                  Record a voice note to create follow-ups.
+                <p className="text-xs text-clara-text-muted mt-1.5 max-w-[220px] mx-auto">
+                  When you record a voice note, Clara will create follow-ups here automatically.
                 </p>
               </div>
             )}

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+import { DEMO_USER_ID } from "@/lib/config";
 
 export async function GET(req: NextRequest) {
   const includeDone = req.nextUrl.searchParams.get("include_done") === "true";

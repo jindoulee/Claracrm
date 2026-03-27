@@ -2,12 +2,11 @@ import { type NextRequest } from "next/server";
 import OpenAI from "openai";
 import { CLARA_CHAT_PROMPT } from "@/lib/ai/prompts";
 import { supabase } from "@/lib/supabase/client";
+import { DEMO_USER_ID } from "@/lib/config";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "placeholder",
 });
-
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 
 /**
  * Extract key search terms from a user message.
@@ -389,6 +388,12 @@ export async function POST(request: NextRequest) {
 
     if (!dataContext) {
       dataContext = "\n\nNo matching data found in the CRM for this query.";
+    }
+
+    // Guard rail: truncate context to avoid blowing GPT-4o token limits
+    const MAX_CONTEXT_CHARS = 6000;
+    if (dataContext.length > MAX_CONTEXT_CHARS) {
+      dataContext = dataContext.slice(0, MAX_CONTEXT_CHARS) + "\n\n[...truncated — too much data to include]";
     }
 
     const response = await openai.chat.completions.create({

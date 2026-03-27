@@ -14,8 +14,7 @@ import {
   boostRelationshipStrength,
 } from "@/lib/supabase/queries";
 import type { ContactMatchInfo } from "@/lib/supabase/types";
-
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+import { DEMO_USER_ID } from "@/lib/config";
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,11 +33,12 @@ export async function POST(req: NextRequest) {
       existingContacts || []
     );
 
-    // Step 2: Generate follow-up questions
-    const followUpQuestions = await generateFollowUpQuestions(
+    // Step 2: Generate follow-up questions in parallel with DB persistence
+    // (don't block the summary card on follow-ups)
+    const followUpPromise = generateFollowUpQuestions(
       result,
       transcript
-    );
+    ).catch(() => []);
 
     // Step 3: Persist data to Supabase
     let dbIds: {
@@ -190,6 +190,9 @@ export async function POST(req: NextRequest) {
       // Log but don't fail — AI results are still valid even if DB persistence fails
       console.error("Failed to persist voice processing results:", persistError);
     }
+
+    // Await follow-ups (ran in parallel with DB persistence above)
+    const followUpQuestions = await followUpPromise;
 
     return NextResponse.json({
       result,

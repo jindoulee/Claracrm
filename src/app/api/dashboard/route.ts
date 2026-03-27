@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
 import { getFadingRelationships } from "@/lib/supabase/queries";
-
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+import { DEMO_USER_ID } from "@/lib/config";
 
 export async function GET() {
   try {

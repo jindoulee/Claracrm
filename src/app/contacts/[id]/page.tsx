@@ -21,8 +21,10 @@ import {
   Save,
 } from "lucide-react";
 import { hapticSuccess, hapticLight } from "@/lib/utils/haptics";
+import { formatTimeAgo } from "@/lib/utils/format";
 import { ChatSheet } from "@/components/chat/ChatSheet";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { useToast } from "@/components/ui/Toast";
 
 // --- Helpers ---
 
@@ -74,21 +76,6 @@ const typeIcons: Record<string, typeof Coffee> = {
   general: MessageSquare,
   voice_note: Mic,
 };
-
-function formatTimeAgo(date: string): string {
-  const now = new Date();
-  const then = new Date(date);
-  const diffMs = now.getTime() - then.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return "Just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-  return then.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 // --- Types ---
 
@@ -144,6 +131,7 @@ interface EditForm {
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { showToast } = useToast();
   const [contact, setContact] = useState<ContactDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -231,11 +219,11 @@ export default function ContactDetailPage() {
       }
       setIsEditing(false);
     } catch {
-      // stay in edit mode on error
+      showToast("Couldn't save changes. Try again?", "error");
     } finally {
       setIsSaving(false);
     }
-  }, [contact, editForm, id]);
+  }, [contact, editForm, id, showToast]);
 
   const deleteFact = useCallback(
     async (factId: string) => {
@@ -295,12 +283,13 @@ export default function ContactDetailPage() {
       if (!res.ok) throw new Error("Failed to create task");
       hapticSuccess();
       setIsAddTaskOpen(false);
+      showToast("Task created!");
     } catch {
-      // stay open on error
+      showToast("Couldn't create task. Try again?", "error");
     } finally {
       setIsCreatingTask(false);
     }
-  }, [contact, id, taskTitle, taskDueDate, taskPriority]);
+  }, [contact, id, taskTitle, taskDueDate, taskPriority, showToast]);
 
   if (isLoading) {
     return (

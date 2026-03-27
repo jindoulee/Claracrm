@@ -7,8 +7,7 @@ import type {
   ExtractedInteraction,
   ContactMatchResult,
 } from "./types";
-
-const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
+import { DEMO_USER_ID } from "@/lib/config";
 
 // ============================================
 // CONTACTS
