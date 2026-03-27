@@ -29,7 +29,7 @@ interface ChatSheetProps {
 const WELCOME_MESSAGE: ChatMessage = {
   id: "welcome",
   role: "clara",
-  text: "Hey! Ask me anything about your contacts.",
+  text: "Hey! Ask Clara anything about your contacts.",
 };
 
 export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
