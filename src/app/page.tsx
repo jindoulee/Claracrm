@@ -343,21 +343,57 @@ function HomePageContent() {
           {/* Skeleton while loading */}
           {isDashboardLoading && <HomeSkeleton />}
 
-          {/* Consolidated empty state when user has no data */}
+          {/* Empty state — tappable prompt cards */}
           {!isDashboardLoading && hasNoData && (
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35 }}
-              className="text-center py-6 px-4"
+              className="space-y-3"
             >
-              <p className="text-sm text-clara-text font-medium">
-                Welcome to Clara
+              <p className="text-xs text-clara-text-muted text-center mb-1">
+                Try one of these to get started
               </p>
-              <p className="text-xs text-clara-text-muted mt-1.5 max-w-[240px] mx-auto leading-relaxed">
-                Tap the mic above and tell Clara about a recent conversation.
-                She&apos;ll remember the people, details, and follow-ups for you.
-              </p>
+              {[
+                {
+                  icon: Coffee,
+                  label: "I had coffee with someone today",
+                  message: "I had coffee with someone today",
+                },
+                {
+                  icon: Phone,
+                  label: "I just got off a phone call",
+                  message: "I just got off a phone call",
+                },
+                {
+                  icon: Users,
+                  label: "Import my contacts",
+                  href: "/contacts",
+                },
+              ].map((prompt, i) => (
+                <motion.button
+                  key={i}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + i * 0.06 }}
+                  onClick={() => {
+                    if (prompt.href) {
+                      router.push(prompt.href);
+                    } else if (prompt.message) {
+                      setInitialChatMessage(prompt.message);
+                      setIsChatOpen(true);
+                    }
+                  }}
+                  className="w-full clara-card p-3.5 flex items-center gap-3 text-left hover:shadow-md active:scale-[0.98] transition-all"
+                >
+                  <div className="w-9 h-9 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center flex-shrink-0">
+                    <prompt.icon size={16} />
+                  </div>
+                  <span className="text-sm text-clara-text font-medium">
+                    {prompt.label}
+                  </span>
+                </motion.button>
+              ))}
             </motion.div>
           )}
 
