@@ -3,7 +3,13 @@ import { supabase } from "@/lib/supabase/client";
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const includeDone = req.nextUrl.searchParams.get("include_done") === "true";
+
+  const statusFilter = includeDone
+    ? ["pending", "snoozed", "done"]
+    : ["pending", "snoozed"];
+
   const { data, error } = await supabase
     .from("tasks")
     .select(`
@@ -11,7 +17,7 @@ export async function GET() {
       contacts:contact_id (id, full_name, avatar_url)
     `)
     .eq("user_id", DEMO_USER_ID)
-    .in("status", ["pending", "snoozed"])
+    .in("status", statusFilter)
     .order("due_at", { ascending: true, nullsFirst: false });
 
   if (error) {

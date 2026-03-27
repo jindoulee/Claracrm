@@ -88,3 +88,62 @@ export async function GET(
     );
   }
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  try {
+    const body = await req.json();
+
+    // Only allow updating specific fields
+    const allowedFields = [
+      "full_name",
+      "company",
+      "role",
+      "email",
+      "phone",
+      "notes",
+      "tags",
+      "nickname",
+    ];
+    const updates: Record<string, unknown> = {};
+    for (const key of allowedFields) {
+      if (key in body) {
+        updates[key] = body[key];
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        { error: "No valid fields to update" },
+        { status: 400 }
+      );
+    }
+
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from("contacts")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      return NextResponse.json(
+        { error: "Failed to update contact" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(data);
+  } catch (err) {
+    return NextResponse.json(
+      { error: "Failed to update contact" },
+      { status: 500 }
+    );
+  }
+}

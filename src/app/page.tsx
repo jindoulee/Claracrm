@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { VoiceRecorder } from "@/components/voice/VoiceRecorder";
@@ -45,7 +46,7 @@ interface RecentInteraction {
   summary: string | null;
   occurred_at: string;
   sentiment: string;
-  contacts: Array<{ full_name: string }>;
+  contacts: Array<{ id: string; full_name: string }>;
 }
 
 // ---- Helpers ----
@@ -134,6 +135,7 @@ const fadeUp = {
 // ==== Page ====
 
 export default function HomePage() {
+  const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingResult, setProcessingResult] =
     useState<VoiceProcessingResult | null>(null);
@@ -141,6 +143,13 @@ export default function HomePage() {
     []
   );
   const [showSummary, setShowSummary] = useState(false);
+  const [summaryDbIds, setSummaryDbIds] = useState<{
+    contactIds: string[];
+    interactionId: string | null;
+    factIds: string[];
+    relationshipIds: string[];
+    taskIds: string[];
+  } | null>(null);
 
   // Dashboard data
   const [fadingRelationships, setFadingRelationships] = useState<
@@ -188,7 +197,7 @@ export default function HomePage() {
                 occurred_at:
                   (item.occurred_at as string) || new Date().toISOString(),
                 sentiment: (item.sentiment as string) || "neutral",
-                contacts: [],
+                contacts: (item.contacts as Array<{ id: string; full_name: string }>) ?? [],
               }))
           );
         }
@@ -218,6 +227,7 @@ export default function HomePage() {
         const data = await response.json();
         setProcessingResult(data.result);
         setFollowUpQuestions(data.followUpQuestions || []);
+        setSummaryDbIds(data.dbIds || null);
         setShowSummary(true);
 
         // Add to local timeline immediately for instant feedback
@@ -473,11 +483,19 @@ export default function HomePage() {
                 {recentInteractions.slice(0, 5).map((interaction) => {
                   const Icon =
                     typeIcons[interaction.interaction_type] || MessageSquare;
+                  const firstContactId = interaction.contacts?.[0]?.id;
                   return (
                     <motion.div
                       key={interaction.id}
                       variants={fadeUp}
-                      className="clara-card px-4 py-3 flex gap-3"
+                      className={`clara-card px-4 py-3 flex gap-3${firstContactId ? " cursor-pointer active:scale-[0.98] transition-transform" : ""}`}
+                      onClick={
+                        firstContactId
+                          ? () => router.push(`/contacts/${firstContactId}`)
+                          : undefined
+                      }
+                      role={firstContactId ? "button" : undefined}
+                      tabIndex={firstContactId ? 0 : undefined}
                     >
                       <div
                         className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
@@ -521,6 +539,7 @@ export default function HomePage() {
         {processingResult && (
           <SummaryCard
             result={processingResult}
+            dbIds={summaryDbIds}
             followUpQuestions={followUpQuestions}
             onQuestionAnswer={handleQuestionAnswer}
             onDismiss={handleDismiss}

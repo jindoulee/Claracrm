@@ -57,10 +57,26 @@ export async function GET() {
         .lte("due_at", new Date(new Date().setHours(23, 59, 59, 999)).toISOString()),
     ]);
 
+    // Flatten interaction_contacts join into a simple contacts array
+    const recentInteractions = (interactionsResult.data ?? []).map(
+      (interaction: Record<string, unknown>) => {
+        const icJoin = interaction.interaction_contacts as
+          | Array<{ contact_id: string; contacts: { id: string; full_name: string; avatar_url: string | null } }>
+          | undefined;
+        const contacts = (icJoin ?? []).map((ic) => ({
+          id: ic.contacts.id,
+          full_name: ic.contacts.full_name,
+        }));
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { interaction_contacts, ...rest } = interaction;
+        return { ...rest, contacts };
+      }
+    );
+
     return NextResponse.json({
       upcomingTasks: tasksResult.data ?? [],
       fadingRelationships: fadingResult ?? [],
-      recentInteractions: interactionsResult.data ?? [],
+      recentInteractions,
       stats: {
         totalContacts: contactCountResult.count ?? 0,
         totalInteractions: interactionCountResult.count ?? 0,

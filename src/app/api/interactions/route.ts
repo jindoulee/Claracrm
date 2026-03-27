@@ -6,7 +6,7 @@ const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 export async function GET() {
   const { data, error } = await supabase
     .from("interactions")
-    .select("*")
+    .select("*, interaction_contacts(contact_id, contacts:contact_id(id, full_name))")
     .eq("user_id", DEMO_USER_ID)
     .order("occurred_at", { ascending: false })
     .limit(50);
@@ -15,7 +15,23 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  // Flatten interaction_contacts join into a simple contacts array
+  const flattened = (data ?? []).map(
+    (interaction: Record<string, unknown>) => {
+      const icJoin = interaction.interaction_contacts as
+        | Array<{ contact_id: string; contacts: { id: string; full_name: string } }>
+        | undefined;
+      const contacts = (icJoin ?? []).map((ic) => ({
+        id: ic.contacts.id,
+        full_name: ic.contacts.full_name,
+      }));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { interaction_contacts, ...rest } = interaction;
+      return { ...rest, contacts };
+    }
+  );
+
+  return NextResponse.json(flattened);
 }
 
 export async function POST(req: NextRequest) {
