@@ -123,6 +123,10 @@ function HomePageContent() {
     RecentInteraction[]
   >([]);
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
+  const [briefing, setBriefing] = useState<{
+    tasksDueToday: number;
+    fadingContacts: string[];
+  } | null>(null);
 
   // Read chat query param on mount to open chat sheet with initial message
   useEffect(() => {
@@ -144,6 +148,15 @@ function HomePageContent() {
         const data = await res.json();
         if (data.upcomingTasks) setUpcomingTasks(data.upcomingTasks);
         if (data.recentInteractions) setRecentInteractions(data.recentInteractions);
+
+        // Build briefing data
+        const fadingNames = (data.fadingRelationships || [])
+          .slice(0, 3)
+          .map((c: { full_name: string }) => c.full_name);
+        const dueToday = data.stats?.tasksDueToday || 0;
+        if (dueToday > 0 || fadingNames.length > 0) {
+          setBriefing({ tasksDueToday: dueToday, fadingContacts: fadingNames });
+        }
       } catch {
         // Silently fail — sections will show empty states
       } finally {
@@ -395,6 +408,35 @@ function HomePageContent() {
                 </motion.button>
               ))}
             </motion.div>
+          )}
+
+          {/* ---- Your Morning Briefing ---- */}
+          {!isDashboardLoading && briefing && (
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              <h2 className="flex items-center gap-1.5 text-xs font-semibold text-clara-text-muted uppercase tracking-wider px-1 mb-3">
+                <Calendar size={13} className="text-clara-coral" />
+                Your day
+              </h2>
+              <div className="clara-card p-4 space-y-2">
+                {briefing.tasksDueToday > 0 && (
+                  <p className="text-sm text-clara-text">
+                    You have <strong>{briefing.tasksDueToday}</strong>{" "}
+                    follow-up{briefing.tasksDueToday !== 1 ? "s" : ""} due today.
+                  </p>
+                )}
+                {briefing.fadingContacts.length > 0 && (
+                  <p className="text-sm text-clara-text-secondary">
+                    {briefing.fadingContacts.length === 1
+                      ? `${briefing.fadingContacts[0]} might be worth checking in on.`
+                      : `${briefing.fadingContacts.slice(0, -1).join(", ")} and ${briefing.fadingContacts.at(-1)} might be worth checking in on.`}
+                  </p>
+                )}
+              </div>
+            </motion.section>
           )}
 
           {/* ---- Coming Up Section ---- */}
