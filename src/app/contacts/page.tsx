@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/layout/Header";
 import { ContactCard } from "@/components/contacts/ContactCard";
-import { Search, UserPlus, Users, AlertCircle } from "lucide-react";
+import { ImportSheet } from "@/components/contacts/ImportSheet";
+import { Search, Upload, Users, AlertCircle } from "lucide-react";
 
 
 interface ContactData {
@@ -23,35 +24,54 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<ContactData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+
+  const fetchContacts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/contacts");
+      if (!res.ok) throw new Error("Failed to fetch");
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setContacts(data);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    async function fetchContacts() {
-      try {
-        const res = await fetch("/api/contacts");
-        if (!res.ok) throw new Error("Failed to fetch");
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setContacts(data);
-        }
-      } catch {
-        setError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    }
     fetchContacts();
-  }, []);
+  }, [fetchContacts]);
+
+  const handleImportComplete = useCallback(() => {
+    // Re-fetch contacts after import
+    fetchContacts();
+  }, [fetchContacts]);
 
   const filtered = contacts.filter(
     (c) =>
       c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       c.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
+      c.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="People" subtitle={contacts.length > 0 ? `${contacts.length} contacts` : undefined} />
+      <Header
+        title="People"
+        subtitle={contacts.length > 0 ? `${contacts.length} contacts` : undefined}
+        action={
+          contacts.length > 0
+            ? {
+                icon: Upload,
+                label: "Import",
+                onClick: () => setIsImportOpen(true),
+              }
+            : undefined
+        }
+      />
 
       <div className="px-5 space-y-4">
         {/* Search bar — only show when there are contacts */}
@@ -116,21 +136,28 @@ export default function ContactsPage() {
                 <p className="text-sm font-medium text-clara-text">
                   Your people will show up here
                 </p>
-                <p className="text-xs text-clara-text-muted mt-1.5 max-w-[220px] mx-auto">
-                  Record a voice note on the home screen and Clara will add anyone you mention.
+                <p className="text-xs text-clara-text-muted mt-1.5 max-w-[240px] mx-auto">
+                  Import your existing contacts so Clara can recognize them when you record voice notes.
                 </p>
                 <button
-                  onClick={() => router.push("/")}
-                  className="mt-4 inline-flex items-center gap-1.5 text-sm text-clara-coral font-medium"
+                  onClick={() => setIsImportOpen(true)}
+                  className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-clara-coral text-white text-sm font-medium hover:bg-clara-coral-dark active:scale-[0.98] transition-all"
                 >
-                  <UserPlus size={16} />
-                  Record a voice note
+                  <Upload size={16} />
+                  Add Your Contacts
                 </button>
               </div>
             )}
           </>
         )}
       </div>
+
+      {/* Import sheet */}
+      <ImportSheet
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onImportComplete={handleImportComplete}
+      />
     </div>
   );
 }
