@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   Lightbulb,
@@ -18,6 +18,9 @@ import {
   TrendingUp,
   Minus,
   TrendingDown,
+  X,
+  Plus,
+  Save,
 } from "lucide-react";
 
 // --- Helpers ---
@@ -131,6 +134,16 @@ interface ContactDetail {
   }[];
 }
 
+interface EditForm {
+  full_name: string;
+  company: string;
+  role: string;
+  email: string;
+  phone: string;
+  notes: string;
+  tags: string[];
+}
+
 // --- Page Component ---
 
 export default function ContactDetailPage({
@@ -143,6 +156,20 @@ export default function ContactDetailPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<EditForm>({
+    full_name: "",
+    company: "",
+    role: "",
+    email: "",
+    phone: "",
+    notes: "",
+    tags: [],
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [newTag, setNewTag] = useState("");
+
   useEffect(() => {
     async function fetchContact() {
       try {
@@ -150,7 +177,7 @@ export default function ContactDetailPage({
         if (!res.ok) throw new Error("Contact not found");
         const data = await res.json();
         setContact(data);
-      } catch (err) {
+      } catch {
         setError("Could not load contact");
       } finally {
         setIsLoading(false);
@@ -158,6 +185,84 @@ export default function ContactDetailPage({
     }
     fetchContact();
   }, [id]);
+
+  const enterEditMode = useCallback(() => {
+    if (!contact) return;
+    setEditForm({
+      full_name: contact.full_name,
+      company: contact.company || "",
+      role: contact.role || "",
+      email: contact.email || "",
+      phone: contact.phone || "",
+      notes: contact.notes || "",
+      tags: contact.tags || [],
+    });
+    setIsEditing(true);
+  }, [contact]);
+
+  const cancelEdit = useCallback(() => {
+    setIsEditing(false);
+    setNewTag("");
+  }, []);
+
+  const saveEdit = useCallback(async () => {
+    if (!contact) return;
+    setIsSaving(true);
+    try {
+      const body: Record<string, unknown> = {};
+      if (editForm.full_name !== contact.full_name) body.full_name = editForm.full_name;
+      if (editForm.company !== (contact.company || "")) body.company = editForm.company || null;
+      if (editForm.role !== (contact.role || "")) body.role = editForm.role || null;
+      if (editForm.email !== (contact.email || "")) body.email = editForm.email || null;
+      if (editForm.phone !== (contact.phone || "")) body.phone = editForm.phone || null;
+      if (editForm.notes !== (contact.notes || "")) body.notes = editForm.notes || null;
+      if (JSON.stringify(editForm.tags) !== JSON.stringify(contact.tags || [])) body.tags = editForm.tags;
+
+      if (Object.keys(body).length > 0) {
+        const res = await fetch(`/api/contacts/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error("Failed to save");
+        const updated = await res.json();
+        setContact((prev) => (prev ? { ...prev, ...updated } : prev));
+      }
+      setIsEditing(false);
+    } catch {
+      // stay in edit mode on error
+    } finally {
+      setIsSaving(false);
+    }
+  }, [contact, editForm, id]);
+
+  const deleteFact = useCallback(
+    async (factId: string) => {
+      try {
+        const res = await fetch(`/api/facts/${factId}`, { method: "DELETE" });
+        if (res.ok) {
+          setContact((prev) =>
+            prev ? { ...prev, facts: prev.facts.filter((f) => f.id !== factId) } : prev
+          );
+        }
+      } catch {
+        // silently fail
+      }
+    },
+    []
+  );
+
+  const addTag = useCallback(() => {
+    const tag = newTag.trim();
+    if (tag && !editForm.tags.includes(tag)) {
+      setEditForm((prev) => ({ ...prev, tags: [...prev.tags, tag] }));
+      setNewTag("");
+    }
+  }, [newTag, editForm.tags]);
+
+  const removeTag = useCallback((tag: string) => {
+    setEditForm((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }));
+  }, []);
 
   if (isLoading) {
     return (
@@ -207,8 +312,8 @@ export default function ContactDetailPage({
     );
   }
 
-  const initials = getInitials(contact.full_name);
-  const tags = contact.tags || [];
+  const initials = getInitials(isEditing ? editForm.full_name || contact.full_name : contact.full_name);
+  const displayTags = isEditing ? editForm.tags : contact.tags || [];
   const strength = contact.relationship_strength ?? 50;
   const facts = contact.facts || [];
   const relationships = contact.relationships || [];
@@ -229,9 +334,35 @@ export default function ContactDetailPage({
           >
             <ArrowLeft size={20} className="text-clara-text" />
           </Link>
-          <h1 className="text-lg font-semibold text-clara-text tracking-tight">
-            {contact.full_name}
+          <h1 className="text-lg font-semibold text-clara-text tracking-tight flex-1">
+            {isEditing ? "Edit Contact" : contact.full_name}
           </h1>
+          <AnimatePresence mode="wait">
+            {isEditing && (
+              <motion.div
+                key="edit-actions"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="flex items-center gap-2"
+              >
+                <button
+                  onClick={cancelEdit}
+                  className="px-3 py-1.5 rounded-xl text-xs font-medium text-clara-text-secondary border border-clara-border hover:bg-clara-warm-gray transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEdit}
+                  disabled={isSaving}
+                  className="px-4 py-1.5 rounded-xl text-xs font-medium bg-clara-coral text-white hover:bg-clara-coral-dark transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  <Save size={12} />
+                  {isSaving ? "Saving..." : "Save"}
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.header>
 
@@ -250,51 +381,155 @@ export default function ContactDetailPage({
           </div>
 
           {/* Name */}
-          <h2 className="text-xl font-semibold text-clara-text">
-            {contact.full_name}
-          </h2>
+          {isEditing ? (
+            <input
+              value={editForm.full_name}
+              onChange={(e) => setEditForm((f) => ({ ...f, full_name: e.target.value }))}
+              className="text-xl font-semibold text-clara-text text-center bg-clara-white border border-clara-border rounded-xl px-3 py-2 w-64 outline-none focus:border-clara-coral transition-colors"
+              placeholder="Full name"
+            />
+          ) : (
+            <h2 className="text-xl font-semibold text-clara-text">
+              {contact.full_name}
+            </h2>
+          )}
 
           {/* Company / role */}
-          {(contact.role || contact.company) && (
-            <p className="text-sm text-clara-text-secondary mt-0.5">
-              {[contact.role, contact.company].filter(Boolean).join(" at ")}
-            </p>
+          {isEditing ? (
+            <div className="flex gap-2 mt-2 w-full max-w-xs">
+              <input
+                value={editForm.role}
+                onChange={(e) => setEditForm((f) => ({ ...f, role: e.target.value }))}
+                className="flex-1 bg-clara-white border border-clara-border rounded-xl px-3 py-2 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors"
+                placeholder="Role"
+              />
+              <input
+                value={editForm.company}
+                onChange={(e) => setEditForm((f) => ({ ...f, company: e.target.value }))}
+                className="flex-1 bg-clara-white border border-clara-border rounded-xl px-3 py-2 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors"
+                placeholder="Company"
+              />
+            </div>
+          ) : (
+            (contact.role || contact.company) && (
+              <p className="text-sm text-clara-text-secondary mt-0.5">
+                {[contact.role, contact.company].filter(Boolean).join(" at ")}
+              </p>
+            )
           )}
 
           {/* Contact info */}
-          <div className="flex items-center gap-4 mt-2">
-            {contact.email && (
-              <a
-                href={`mailto:${contact.email}`}
-                className="flex items-center gap-1 text-xs text-clara-text-muted hover:text-clara-coral transition-colors"
-              >
-                <Mail size={12} />
-                {contact.email}
-              </a>
-            )}
-            {contact.phone && (
-              <a
-                href={`tel:${contact.phone}`}
-                className="flex items-center gap-1 text-xs text-clara-text-muted hover:text-clara-coral transition-colors"
-              >
-                <Phone size={12} />
-                {contact.phone}
-              </a>
-            )}
-          </div>
+          {isEditing ? (
+            <div className="flex flex-col gap-2 mt-2 w-full max-w-xs">
+              <div className="flex items-center gap-2">
+                <Mail size={14} className="text-clara-text-muted flex-shrink-0" />
+                <input
+                  value={editForm.email}
+                  onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                  className="flex-1 bg-clara-white border border-clara-border rounded-xl px-3 py-2 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors"
+                  placeholder="Email"
+                  type="email"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <Phone size={14} className="text-clara-text-muted flex-shrink-0" />
+                <input
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                  className="flex-1 bg-clara-white border border-clara-border rounded-xl px-3 py-2 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors"
+                  placeholder="Phone"
+                  type="tel"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4 mt-2">
+              {contact.email && (
+                <a
+                  href={`mailto:${contact.email}`}
+                  className="flex items-center gap-1 text-xs text-clara-text-muted hover:text-clara-coral transition-colors"
+                >
+                  <Mail size={12} />
+                  {contact.email}
+                </a>
+              )}
+              {contact.phone && (
+                <a
+                  href={`tel:${contact.phone}`}
+                  className="flex items-center gap-1 text-xs text-clara-text-muted hover:text-clara-coral transition-colors"
+                >
+                  <Phone size={12} />
+                  {contact.phone}
+                </a>
+              )}
+            </div>
+          )}
 
           {/* Tags */}
-          {tags.length > 0 && (
+          {(displayTags.length > 0 || isEditing) && (
             <div className="flex flex-wrap gap-1.5 mt-3 justify-center">
-              {tags.map((tag) => (
+              {displayTags.map((tag) => (
                 <span
                   key={tag}
-                  className="text-xs px-2.5 py-1 rounded-full bg-clara-warm-gray text-clara-text-secondary"
+                  className="text-xs px-2.5 py-1 rounded-full bg-clara-warm-gray text-clara-text-secondary inline-flex items-center gap-1"
                 >
                   {tag}
+                  {isEditing && (
+                    <button
+                      onClick={() => removeTag(tag)}
+                      className="hover:text-clara-coral transition-colors"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
                 </span>
               ))}
+              {isEditing && (
+                <div className="inline-flex items-center gap-1">
+                  <input
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addTag();
+                      }
+                    }}
+                    className="w-20 bg-clara-white border border-clara-border rounded-full px-2.5 py-1 text-xs text-clara-text outline-none focus:border-clara-coral transition-colors"
+                    placeholder="Add tag"
+                  />
+                  <button
+                    onClick={addTag}
+                    className="w-6 h-6 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center hover:bg-clara-coral hover:text-white transition-colors"
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Notes (edit mode) */}
+          {isEditing && (
+            <div className="w-full max-w-xs mt-3">
+              <label className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider block mb-1.5">
+                Notes
+              </label>
+              <textarea
+                value={editForm.notes}
+                onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value }))}
+                className="w-full bg-clara-white border border-clara-border rounded-xl px-3 py-2 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors resize-none"
+                placeholder="Add notes about this contact..."
+                rows={3}
+              />
+            </div>
+          )}
+
+          {/* Notes (view mode) */}
+          {!isEditing && contact.notes && (
+            <p className="text-xs text-clara-text-secondary mt-2 text-center max-w-xs">
+              {contact.notes}
+            </p>
           )}
 
           {/* Relationship strength */}
@@ -351,9 +586,17 @@ export default function ContactDetailPage({
                   >
                     {fact.fact_type}
                   </span>
-                  <p className="text-sm text-clara-text leading-relaxed">
+                  <p className="text-sm text-clara-text leading-relaxed flex-1">
                     {fact.fact}
                   </p>
+                  {isEditing && (
+                    <button
+                      onClick={() => deleteFact(fact.id)}
+                      className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-clara-text-muted hover:bg-red-50 hover:text-red-400 transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -478,44 +721,49 @@ export default function ContactDetailPage({
         )}
 
         {/* ===== Quick Actions ===== */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="pb-4"
-        >
-          <div className="flex gap-2">
-            <Link
-              href="/"
-              className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow"
-            >
-              <div className="w-9 h-9 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center">
-                <Mic size={16} />
-              </div>
-              <span className="text-xs font-medium text-clara-text">
-                Log interaction
-              </span>
-            </Link>
+        {!isEditing && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="pb-4"
+          >
+            <div className="flex gap-2">
+              <Link
+                href="/"
+                className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow"
+              >
+                <div className="w-9 h-9 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center">
+                  <Mic size={16} />
+                </div>
+                <span className="text-xs font-medium text-clara-text">
+                  Log interaction
+                </span>
+              </Link>
 
-            <button className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow">
-              <div className="w-9 h-9 rounded-full bg-clara-blue-light text-clara-blue flex items-center justify-center">
-                <CheckSquare size={16} />
-              </div>
-              <span className="text-xs font-medium text-clara-text">
-                Add task
-              </span>
-            </button>
+              <button className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow">
+                <div className="w-9 h-9 rounded-full bg-clara-blue-light text-clara-blue flex items-center justify-center">
+                  <CheckSquare size={16} />
+                </div>
+                <span className="text-xs font-medium text-clara-text">
+                  Add task
+                </span>
+              </button>
 
-            <button className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow">
-              <div className="w-9 h-9 rounded-full bg-clara-green-light text-clara-green flex items-center justify-center">
-                <Pencil size={16} />
-              </div>
-              <span className="text-xs font-medium text-clara-text">
-                Edit contact
-              </span>
-            </button>
-          </div>
-        </motion.section>
+              <button
+                onClick={enterEditMode}
+                className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow"
+              >
+                <div className="w-9 h-9 rounded-full bg-clara-green-light text-clara-green flex items-center justify-center">
+                  <Pencil size={16} />
+                </div>
+                <span className="text-xs font-medium text-clara-text">
+                  Edit contact
+                </span>
+              </button>
+            </div>
+          </motion.section>
+        )}
       </div>
     </div>
   );
