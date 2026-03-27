@@ -16,13 +16,13 @@ import {
   Mic,
   Pencil,
   CheckSquare,
-  TrendingUp,
-  TrendingDown,
   X,
   Plus,
   Save,
 } from "lucide-react";
 import { hapticSuccess, hapticLight } from "@/lib/utils/haptics";
+import { ChatSheet } from "@/components/chat/ChatSheet";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 
 // --- Helpers ---
 
@@ -148,6 +148,14 @@ export default function ContactDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Chat & task sheet state
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskPriority, setTaskPriority] = useState<"low" | "medium" | "high">("medium");
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+
   // Edit mode state
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({
@@ -257,6 +265,42 @@ export default function ContactDetailPage() {
   const removeTag = useCallback((tag: string) => {
     setEditForm((prev) => ({ ...prev, tags: prev.tags.filter((t) => t !== tag) }));
   }, []);
+
+  const openAddTask = useCallback(() => {
+    setTaskTitle("");
+    setTaskDueDate("");
+    setTaskPriority("medium");
+    setIsAddTaskOpen(true);
+    hapticLight();
+  }, []);
+
+  const createTask = useCallback(async () => {
+    if (!taskTitle.trim() || !contact) return;
+    setIsCreatingTask(true);
+    try {
+      const body: Record<string, unknown> = {
+        contact_id: id,
+        title: taskTitle.trim(),
+        status: "pending",
+        priority: taskPriority,
+      };
+      if (taskDueDate) {
+        body.due_at = new Date(taskDueDate).toISOString();
+      }
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Failed to create task");
+      hapticSuccess();
+      setIsAddTaskOpen(false);
+    } catch {
+      // stay open on error
+    } finally {
+      setIsCreatingTask(false);
+    }
+  }, [contact, id, taskTitle, taskDueDate, taskPriority]);
 
   if (isLoading) {
     return (
@@ -717,8 +761,8 @@ export default function ContactDetailPage() {
             className="pb-4"
           >
             <div className="flex gap-2">
-              <Link
-                href={`/?chat=${encodeURIComponent(`Brief me on ${contact.full_name}`)}`}
+              <button
+                onClick={() => setIsChatOpen(true)}
                 className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow"
               >
                 <div className="w-9 h-9 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center">
@@ -727,9 +771,12 @@ export default function ContactDetailPage() {
                 <span className="text-xs font-medium text-clara-text">
                   Brief me
                 </span>
-              </Link>
+              </button>
 
-              <button className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow">
+              <button
+                onClick={openAddTask}
+                className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow"
+              >
                 <div className="w-9 h-9 rounded-full bg-clara-blue-light text-clara-blue flex items-center justify-center">
                   <CheckSquare size={16} />
                 </div>
@@ -753,6 +800,84 @@ export default function ContactDetailPage() {
           </motion.section>
         )}
       </div>
+
+      {/* Chat overlay — stays on this page */}
+      <ChatSheet
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        initialMessage={isChatOpen ? `Brief me on ${contact.full_name}` : undefined}
+      />
+
+      {/* Add Task bottom sheet */}
+      <BottomSheet isOpen={isAddTaskOpen} onClose={() => setIsAddTaskOpen(false)}>
+        <div className="space-y-4 pb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-clara-text">Add Task</h2>
+            <p className="text-xs text-clara-text-muted">
+              for {contact.full_name}
+            </p>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider block mb-1.5">
+              What needs to be done?
+            </label>
+            <input
+              type="text"
+              value={taskTitle}
+              onChange={(e) => setTaskTitle(e.target.value)}
+              placeholder={`e.g. Follow up with ${contact.full_name.split(" ")[0]}`}
+              className="w-full bg-clara-white border border-clara-border rounded-xl px-4 py-2.5 text-sm text-clara-text outline-none focus:border-clara-coral focus:ring-1 focus:ring-clara-coral/20 transition-colors placeholder:text-clara-text-muted"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider block mb-1.5">
+              Due date
+            </label>
+            <input
+              type="date"
+              value={taskDueDate}
+              onChange={(e) => setTaskDueDate(e.target.value)}
+              className="w-full bg-clara-white border border-clara-border rounded-xl px-4 py-2.5 text-sm text-clara-text outline-none focus:border-clara-coral focus:ring-1 focus:ring-clara-coral/20 transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-clara-text-muted uppercase tracking-wider block mb-1.5">
+              Priority
+            </label>
+            <div className="flex gap-2">
+              {(["low", "medium", "high"] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setTaskPriority(p)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-medium capitalize transition-colors ${
+                    taskPriority === p
+                      ? p === "high"
+                        ? "bg-red-50 text-red-500 border border-red-200"
+                        : p === "medium"
+                          ? "bg-clara-amber/10 text-clara-amber border border-clara-amber/30"
+                          : "bg-clara-green/10 text-clara-green border border-clara-green/30"
+                      : "bg-clara-warm-gray text-clara-text-secondary border border-transparent"
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={createTask}
+            disabled={!taskTitle.trim() || isCreatingTask}
+            className="w-full py-3 rounded-xl bg-clara-coral text-white font-medium text-sm disabled:opacity-40 hover:bg-clara-coral-dark active:scale-[0.98] transition-all"
+          >
+            {isCreatingTask ? "Creating..." : "Create Task"}
+          </button>
+        </div>
+      </BottomSheet>
     </div>
   );
 }
