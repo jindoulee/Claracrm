@@ -5,12 +5,14 @@ import {
 } from "@/lib/ai/process-voice";
 import {
   findOrCreateContact,
+  updateContactFields,
   createInteraction,
   createContactFact,
   createContactRelationship,
   createTask,
   calculateDueDate,
 } from "@/lib/supabase/queries";
+import type { ContactMatchInfo } from "@/lib/supabase/types";
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
 
@@ -52,22 +54,60 @@ export async function POST(req: NextRequest) {
       taskIds: [],
     };
 
+    const matchInfo: ContactMatchInfo[] = [];
+
     try {
       // Resolve contacts — find or create each extracted contact
       const contactMap = new Map<string, string>(); // name -> id
       for (const extractedContact of result.contacts) {
-        const contact = await findOrCreateContact(
+        const matchResult = await findOrCreateContact(
           DEMO_USER_ID,
           extractedContact.name,
           extractedContact.match_hints
         );
-        const contactId = contact.id as string;
+        const contactId = matchResult.contact.id as string;
         contactMap.set(extractedContact.name, contactId);
         dbIds.contactIds.push(contactId);
 
-        // Apply any updates from the extraction (company, role, etc.)
-        // This is handled via contact facts below
+        // Apply metadata updates from AI extraction (company, role, etc.)
+        let updatedFields: string[] = [];
+        if (
+          extractedContact.updates &&
+          Object.keys(extractedContact.updates).length > 0
+        ) {
+          // Only update fields that are empty or different on the existing contact
+          const existingContact = matchResult.contact;
+          const fieldsToUpdate: Record<string, string> = {};
+
+          for (const [key, value] of Object.entries(
+            extractedContact.updates
+          )) {
+            if (!value) continue;
+            const existingValue = existingContact[key] as string | null;
+            if (!existingValue || existingValue !== value) {
+              fieldsToUpdate[key] = value;
+            }
+          }
+
+          if (Object.keys(fieldsToUpdate).length > 0) {
+            updatedFields = await updateContactFields(
+              contactId,
+              fieldsToUpdate
+            );
+          }
+        }
+
+        matchInfo.push({
+          name: extractedContact.name,
+          contactId,
+          confidence: matchResult.confidence,
+          score: matchResult.score,
+          updatedFields,
+        });
       }
+
+      // Attach match info to result for UI consumption
+      result.matchInfo = matchInfo;
 
       // Create the interaction linked to all resolved contacts
       if (result.interaction) {
@@ -145,6 +185,7 @@ export async function POST(req: NextRequest) {
       result,
       followUpQuestions,
       dbIds,
+      matchInfo,
     });
   } catch (error) {
     console.error("Voice processing error:", error);

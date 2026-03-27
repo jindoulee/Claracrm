@@ -5,6 +5,7 @@ import type {
   ExtractedRelationship,
   ExtractedFollowUp,
   ExtractedInteraction,
+  ContactMatchResult,
 } from "./types";
 
 const DEMO_USER_ID = "00000000-0000-0000-0000-000000000001";
@@ -57,8 +58,8 @@ export async function findOrCreateContact(
   userId: string,
   name: string,
   matchHints: string[] = []
-) {
-  // Try to find by full_name (case-insensitive)
+): Promise<ContactMatchResult> {
+  // Fast path: exact match on full_name (case-insensitive)
   const { data: byName } = await supabase
     .from("contacts")
     .select("*")
@@ -66,10 +67,14 @@ export async function findOrCreateContact(
     .ilike("full_name", name);
 
   if (byName && byName.length > 0) {
-    return byName[0] as Record<string, unknown>;
+    return {
+      contact: byName[0] as Record<string, unknown>,
+      confidence: "exact",
+      score: 1.0,
+    };
   }
 
-  // Try to find by nickname
+  // Fast path: exact match on nickname
   const { data: byNickname } = await supabase
     .from("contacts")
     .select("*")
@@ -77,10 +82,44 @@ export async function findOrCreateContact(
     .ilike("nickname", name);
 
   if (byNickname && byNickname.length > 0) {
-    return byNickname[0] as Record<string, unknown>;
+    return {
+      contact: byNickname[0] as Record<string, unknown>,
+      confidence: "exact",
+      score: 1.0,
+    };
   }
 
-  // Try match hints (company, role, etc.)
+  // Fuzzy path: use trigram similarity via RPC
+  try {
+    const { data: fuzzyMatches, error: rpcError } = await supabase.rpc(
+      "find_similar_contacts",
+      {
+        p_user_id: userId,
+        p_name: name,
+        p_threshold: 0.3,
+      }
+    );
+
+    if (!rpcError && fuzzyMatches && fuzzyMatches.length > 0) {
+      const best = fuzzyMatches[0] as Record<string, unknown>;
+      const score = best.similarity_score as number;
+
+      if (score >= 0.85) {
+        // High confidence fuzzy match — auto-match
+        return { contact: best, confidence: "fuzzy", score };
+      }
+
+      if (score >= 0.5) {
+        // Medium confidence — return as uncertain so UI can flag it
+        return { contact: best, confidence: "uncertain", score };
+      }
+    }
+  } catch {
+    // RPC not available (migration not run yet) — fall through to hint matching
+    console.warn("find_similar_contacts RPC not available, falling back to hint matching");
+  }
+
+  // Fallback: try match hints (company, role, etc.)
   for (const hint of matchHints) {
     if (!hint) continue;
     const { data: byHint } = await supabase
@@ -90,12 +129,15 @@ export async function findOrCreateContact(
       .or(`company.ilike.%${hint}%,role.ilike.%${hint}%`);
 
     if (byHint && byHint.length === 1) {
-      // Only use hint match if it's unambiguous
-      return byHint[0] as Record<string, unknown>;
+      return {
+        contact: byHint[0] as Record<string, unknown>,
+        confidence: "fuzzy",
+        score: 0.7,
+      };
     }
   }
 
-  // Create a new contact
+  // No match found — create a new contact
   const { data: newContact, error } = await supabase
     .from("contacts")
     .insert({
@@ -109,7 +151,42 @@ export async function findOrCreateContact(
     .single();
 
   if (error) throw error;
-  return newContact as Record<string, unknown>;
+  return {
+    contact: newContact as Record<string, unknown>,
+    confidence: "new",
+    score: 0,
+  };
+}
+
+export async function updateContactFields(
+  contactId: string,
+  updates: Record<string, string>
+): Promise<string[]> {
+  // Only update allowed fields, and only if provided
+  const allowedFields = ["company", "role", "email", "phone", "nickname"];
+  const updatePayload: Record<string, string> = {};
+  const updatedFields: string[] = [];
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (allowedFields.includes(key) && value) {
+      updatePayload[key] = value;
+      updatedFields.push(key);
+    }
+  }
+
+  if (Object.keys(updatePayload).length === 0) return [];
+
+  const { error } = await supabase
+    .from("contacts")
+    .update(updatePayload)
+    .eq("id", contactId);
+
+  if (error) {
+    console.error("Failed to update contact fields:", error);
+    return [];
+  }
+
+  return updatedFields;
 }
 
 // ============================================

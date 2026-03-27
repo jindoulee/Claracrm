@@ -116,6 +116,22 @@ export interface ContactFact {
 // AI Processing Types
 // ============================================
 
+export type ContactMatchConfidence = "exact" | "fuzzy" | "new" | "uncertain";
+
+export interface ContactMatchResult {
+  contact: Record<string, unknown>;
+  confidence: ContactMatchConfidence;
+  score: number;
+}
+
+export interface ContactMatchInfo {
+  name: string;
+  contactId: string;
+  confidence: ContactMatchConfidence;
+  score: number;
+  updatedFields: string[];
+}
+
 export interface VoiceProcessingResult {
   contacts: ExtractedContact[];
   interaction: ExtractedInteraction;
@@ -123,6 +139,7 @@ export interface VoiceProcessingResult {
   relationships: ExtractedRelationship[];
   follow_ups: ExtractedFollowUp[];
   clarification_needed: string[];
+  matchInfo?: ContactMatchInfo[];
 }
 
 export interface ExtractedContact {
