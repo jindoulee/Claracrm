@@ -571,6 +571,17 @@ export default function ContactDetailPage() {
               />
             </div>
           </div>
+
+          {/* Brief me — prominent CTA right below the hero */}
+          {!isEditing && (
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="mt-5 w-full max-w-xs flex items-center justify-center gap-2 py-2.5 rounded-xl bg-clara-coral text-white text-sm font-medium hover:bg-clara-coral-dark active:scale-[0.98] transition-all"
+            >
+              <Mic size={15} />
+              Brief me on {contact.full_name.split(" ")[0]}
+            </button>
+          )}
         </motion.section>
 
         {/* ===== Clara Remembers ===== */}
@@ -746,18 +757,6 @@ export default function ContactDetailPage() {
             className="pb-4"
           >
             <div className="flex gap-2">
-              <button
-                onClick={() => setIsChatOpen(true)}
-                className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow"
-              >
-                <div className="w-9 h-9 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center">
-                  <Mic size={16} />
-                </div>
-                <span className="text-xs font-medium text-clara-text">
-                  Brief me
-                </span>
-              </button>
-
               <button
                 onClick={openAddTask}
                 className="flex-1 clara-card p-3 flex flex-col items-center gap-1.5 text-center hover:shadow-md transition-shadow"
