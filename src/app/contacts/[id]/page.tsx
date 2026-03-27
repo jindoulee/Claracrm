@@ -17,7 +17,6 @@ import {
   Pencil,
   CheckSquare,
   TrendingUp,
-  Minus,
   TrendingDown,
   X,
   Plus,
@@ -53,11 +52,6 @@ function strengthLabel(strength: number): string {
   return "Fading";
 }
 
-function StrengthIcon({ strength }: { strength: number }) {
-  if (strength >= 70) return <TrendingUp size={14} />;
-  if (strength >= 40) return <Minus size={14} />;
-  return <TrendingDown size={14} />;
-}
 
 const factTypeBadgeColors: Record<string, string> = {
   family: "bg-clara-purple-light text-clara-purple",
@@ -531,17 +525,11 @@ export default function ContactDetailPage() {
 
           {/* Relationship strength */}
           <div className="mt-4 flex flex-col items-center gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <span
-                className={`flex items-center gap-1 text-sm font-semibold ${strengthColor(strength)}`}
-              >
-                <StrengthIcon strength={strength} />
-                {strength}
-              </span>
-              <span className="text-xs text-clara-text-muted">
-                — {strengthLabel(strength)}
-              </span>
-            </div>
+            <span
+              className={`text-xs font-semibold ${strengthColor(strength)}`}
+            >
+              {strengthLabel(strength)} · {strength}%
+            </span>
             <div className="w-40 h-1.5 bg-clara-warm-gray rounded-full overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
