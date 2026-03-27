@@ -7,6 +7,7 @@ import { Header } from "@/components/layout/Header";
 import { VoiceRecorder } from "@/components/voice/VoiceRecorder";
 import { SummaryCard } from "@/components/voice/SummaryCard";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { ChatSheet } from "@/components/chat/ChatSheet";
 import {
   Heart,
   CalendarDays,
@@ -136,6 +137,7 @@ const fadeUp = {
 
 export default function HomePage() {
   const router = useRouter();
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingResult, setProcessingResult] =
     useState<VoiceProcessingResult | null>(null);
@@ -289,10 +291,22 @@ export default function HomePage() {
       <div className="flex-1 flex flex-col items-center px-5">
         {/* Voice recorder — hero section */}
         <div className="flex flex-col items-center justify-center py-8 w-full">
-          <VoiceRecorder
-            onTranscriptComplete={handleTranscriptComplete}
-            isProcessing={isProcessing}
-          />
+          <div className="flex items-center gap-4">
+            {/* Chat button */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setIsChatOpen(true)}
+              className="w-12 h-12 rounded-full bg-white border border-clara-border shadow-sm flex items-center justify-center text-clara-coral hover:shadow-md transition-shadow"
+              aria-label="Chat with Clara"
+            >
+              <MessageSquare size={20} />
+            </motion.button>
+
+            <VoiceRecorder
+              onTranscriptComplete={handleTranscriptComplete}
+              isProcessing={isProcessing}
+            />
+          </div>
         </div>
 
         {/* Dashboard sections */}
@@ -546,6 +560,9 @@ export default function HomePage() {
           />
         )}
       </BottomSheet>
+
+      {/* Chat with Clara */}
+      <ChatSheet isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 }
