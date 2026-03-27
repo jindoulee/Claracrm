@@ -180,7 +180,47 @@ async function searchData(terms: string[], originalMessage: string) {
     }
   }
 
-  return { contacts, facts, interactions };
+  // Always load pending tasks — they're critical for follow-up/task questions
+  const tasks: Record<string, unknown>[] = [];
+  const { data: pendingTasks } = await supabase
+    .from("tasks")
+    .select("id, title, description, due_at, status, priority, channel, contact_id")
+    .eq("user_id", DEMO_USER_ID)
+    .in("status", ["pending", "snoozed"])
+    .order("due_at", { ascending: true, nullsFirst: false })
+    .limit(50);
+
+  if (pendingTasks) {
+    // Enrich tasks with contact names
+    const taskContactIds = [...new Set(
+      pendingTasks
+        .map((t: Record<string, unknown>) => t.contact_id as string | null)
+        .filter(Boolean)
+    )] as string[];
+
+    let taskContactLookup = new Map<string, string>();
+    if (taskContactIds.length > 0) {
+      const { data: taskContacts } = await supabase
+        .from("contacts")
+        .select("id, full_name")
+        .in("id", taskContactIds);
+      if (taskContacts) {
+        taskContactLookup = new Map(
+          taskContacts.map((c: Record<string, unknown>) => [c.id as string, c.full_name as string])
+        );
+      }
+    }
+
+    for (const t of pendingTasks) {
+      const task = t as Record<string, unknown>;
+      task.contact_name = task.contact_id
+        ? taskContactLookup.get(task.contact_id as string) || "Unknown"
+        : null;
+      tasks.push(task);
+    }
+  }
+
+  return { contacts, facts, interactions, tasks };
 }
 
 export async function POST(request: NextRequest) {
@@ -226,6 +266,18 @@ export async function POST(request: NextRequest) {
       dataContext += "\nRECENT INTERACTIONS:\n";
       for (const i of sources.interactions) {
         dataContext += `- ${i.occurred_at} (${i.interaction_type}, ${i.sentiment}): ${i.summary}\n`;
+      }
+    }
+
+    if (sources.tasks.length > 0) {
+      dataContext += "\nPENDING TASKS & FOLLOW-UPS:\n";
+      for (const t of sources.tasks) {
+        dataContext += `- [${t.priority || "medium"}] ${t.title}`;
+        if ((t as Record<string, unknown>).contact_name) dataContext += ` (for ${(t as Record<string, unknown>).contact_name})`;
+        if (t.due_at) dataContext += ` — due: ${t.due_at}`;
+        if (t.channel) dataContext += ` via ${t.channel}`;
+        if (t.status === "snoozed") dataContext += ` [snoozed]`;
+        dataContext += "\n";
       }
     }
 
