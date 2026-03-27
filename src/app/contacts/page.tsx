@@ -6,36 +6,6 @@ import { Header } from "@/components/layout/Header";
 import { ContactCard } from "@/components/contacts/ContactCard";
 import { Search, UserPlus } from "lucide-react";
 
-// Demo data — used as fallback if API returns empty/error
-const DEMO_CONTACTS = [
-  {
-    id: "1",
-    full_name: "Alan Chen",
-    company: "TechCorp",
-    role: "VP Engineering",
-    tags: ["friend", "tech"],
-    relationship_strength: 75,
-    last_interaction_at: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: "2",
-    full_name: "Sarah Kim",
-    company: "StartupXYZ",
-    role: "CEO",
-    tags: ["investor-intro", "founder"],
-    relationship_strength: 60,
-    last_interaction_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-  },
-  {
-    id: "3",
-    full_name: "Mike Rodriguez",
-    company: null,
-    role: "Designer",
-    tags: ["friend"],
-    relationship_strength: 35,
-    last_interaction_at: new Date(Date.now() - 86400000 * 30).toISOString(),
-  },
-];
 
 interface ContactData {
   id: string;
@@ -59,13 +29,11 @@ export default function ContactsPage() {
         const res = await fetch("/api/contacts");
         if (!res.ok) throw new Error("Failed to fetch");
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setContacts(data);
-        } else {
-          setContacts(DEMO_CONTACTS);
         }
       } catch {
-        setContacts(DEMO_CONTACTS);
+        // API failed, keep empty state
       } finally {
         setIsLoading(false);
       }
@@ -115,10 +83,12 @@ export default function ContactsPage() {
               ))}
             </div>
 
-            {filtered.length === 0 && searchQuery && (
+            {filtered.length === 0 && (
               <div className="text-center py-12">
                 <p className="text-clara-text-secondary text-sm">
-                  No one named &ldquo;{searchQuery}&rdquo; yet.
+                  {searchQuery
+                    ? <>No one named &ldquo;{searchQuery}&rdquo; yet.</>
+                    : "No contacts yet. Record a voice note to add people."}
                 </p>
                 <button className="mt-3 inline-flex items-center gap-1.5 text-sm text-clara-coral font-medium">
                   <UserPlus size={16} />

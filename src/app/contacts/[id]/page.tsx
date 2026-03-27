@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -146,12 +147,8 @@ interface EditForm {
 
 // --- Page Component ---
 
-export default function ContactDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = React.use(params);
+export default function ContactDetailPage() {
+  const { id } = useParams<{ id: string }>();
   const [contact, setContact] = useState<ContactDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
