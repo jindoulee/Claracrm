@@ -356,16 +356,35 @@ function ContactsPageContent() {
           <>
             {/* Contact list */}
             <div className="space-y-2">
-              {filtered.map((contact, i) => (
-                <ContactCard
-                  key={contact.id}
-                  contact={contact}
-                  index={i}
-                  onClick={() => router.push(`/contacts/${contact.id}`)}
-                  onHide={handleHideContact}
-                  mode="active"
-                />
-              ))}
+              {filtered.map((contact, i) => {
+                // Show letter header when sorting A-Z
+                const showLetterHeader =
+                  sortBy === "name" &&
+                  !searchQuery &&
+                  (i === 0 ||
+                    filtered[i - 1].full_name[0]?.toUpperCase() !==
+                      contact.full_name[0]?.toUpperCase());
+                const letter = contact.full_name[0]?.toUpperCase() || "#";
+
+                return (
+                  <div key={contact.id}>
+                    {showLetterHeader && (
+                      <div className="sticky top-14 z-10 -mx-5 px-5 py-1.5 bg-clara-cream/95 backdrop-blur-sm">
+                        <span className="text-xs font-bold text-clara-coral uppercase">
+                          {letter}
+                        </span>
+                      </div>
+                    )}
+                    <ContactCard
+                      contact={contact}
+                      index={i}
+                      onClick={() => router.push(`/contacts/${contact.id}`)}
+                      onHide={handleHideContact}
+                      mode="active"
+                    />
+                  </div>
+                );
+              })}
             </div>
 
             {/* Search empty state */}

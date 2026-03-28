@@ -60,15 +60,17 @@ export function ContactCard({ contact, index, onClick, onHide, onRestore, mode =
     .toUpperCase();
 
   const x = useMotionValue(0);
-  const actionOpacity = useTransform(x, [-120, -60], [1, 0]);
-  const actionScale = useTransform(x, [-120, -60], [1, 0.8]);
+  const actionOpacity = useTransform(x, [-140, -80], [1, 0]);
+  const actionScale = useTransform(x, [-140, -80], [1, 0.8]);
   const [isDragging, setIsDragging] = useState(false);
 
-  const handleDragEnd = () => {
+  const handleDragEnd = (_: unknown, info: { offset: { x: number }; velocity: { x: number } }) => {
     const xVal = x.get();
-    if (xVal < -80 && mode === "active" && onHide) {
+    // Require a deliberate swipe: far enough distance AND sufficient velocity
+    const triggered = xVal < -120 && info.velocity.x < -100;
+    if (triggered && mode === "active" && onHide) {
       onHide(contact.id);
-    } else if (xVal < -80 && mode === "hidden" && onRestore) {
+    } else if (triggered && mode === "hidden" && onRestore) {
       onRestore(contact.id);
     }
     setIsDragging(false);
@@ -110,8 +112,8 @@ export function ContactCard({ contact, index, onClick, onHide, onRestore, mode =
         transition={{ delay: index * 0.03 }}
         style={isSwipeable ? { x } : undefined}
         drag={isSwipeable ? "x" : false}
-        dragConstraints={{ left: -140, right: 0 }}
-        dragElastic={{ left: 0.3, right: 0 }}
+        dragConstraints={{ left: -160, right: 0 }}
+        dragElastic={{ left: 0.15, right: 0 }}
         onDragStart={() => setIsDragging(true)}
         onDragEnd={handleDragEnd}
         className={`clara-card p-4 flex items-center gap-3 w-full text-left relative z-10 ${
