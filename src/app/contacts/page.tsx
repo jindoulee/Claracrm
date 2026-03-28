@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { ContactCard } from "@/components/contacts/ContactCard";
 import { ImportSheet } from "@/components/contacts/ImportSheet";
-import { Search, Upload, Users, AlertCircle, CheckCircle } from "lucide-react";
+import { Search, Upload, Users, AlertCircle, CheckCircle, Plus } from "lucide-react";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { useToast } from "@/components/ui/Toast";
 import { ContactListSkeleton } from "@/components/ui/Skeleton";
 
@@ -42,6 +43,9 @@ function ContactsPageContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ full_name: "", email: "", phone: "", company: "", notes: "" });
+  const [isAdding, setIsAdding] = useState(false);
   const [isGoogleImporting, setIsGoogleImporting] = useState(false);
   const [googleResult, setGoogleResult] = useState<{
     imported: number;
@@ -97,8 +101,38 @@ function ContactsPageContent() {
 
   const handleGoogleImport = () => {
     setIsGoogleImporting(true);
-    // Navigate to the OAuth flow — this will redirect to Google
     window.location.href = "/api/auth/google";
+  };
+
+  const handleAddContact = async () => {
+    if (!addForm.full_name.trim()) return;
+    setIsAdding(true);
+    try {
+      const res = await fetch("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: addForm.full_name.trim(),
+          email: addForm.email.trim() || null,
+          phone: addForm.phone.trim() || null,
+          company: addForm.company.trim() || null,
+          notes: addForm.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const newContact = await res.json();
+      showToast(`Added ${addForm.full_name.trim()}`);
+      setIsAddOpen(false);
+      setAddForm({ full_name: "", email: "", phone: "", company: "", notes: "" });
+      fetchContacts();
+      if (newContact?.id) {
+        router.push(`/contacts/${newContact.id}`);
+      }
+    } catch {
+      showToast("Couldn't add contact. Try again?", "error");
+    } finally {
+      setIsAdding(false);
+    }
   };
 
   const filtered = contacts.filter(
@@ -113,13 +147,12 @@ function ContactsPageContent() {
       <Header
         title="People"
         subtitle={contacts.length > 0 ? `${contacts.length} contacts` : undefined}
-        action={
+        actions={
           contacts.length > 0
-            ? {
-                icon: Upload,
-                label: "Import",
-                onClick: () => setIsImportOpen(true),
-              }
+            ? [
+                { icon: Plus, label: "Add", onClick: () => setIsAddOpen(true) },
+                { icon: Upload, label: "Import", onClick: () => setIsImportOpen(true) },
+              ]
             : undefined
         }
       />
@@ -242,6 +275,15 @@ function ContactsPageContent() {
                     <Upload size={14} />
                     Upload a .vcf or .csv file instead
                   </button>
+
+                  {/* Manual add */}
+                  <button
+                    onClick={() => setIsAddOpen(true)}
+                    className="w-full flex items-center justify-center gap-1.5 px-5 py-2 rounded-xl text-xs font-medium text-clara-text-muted hover:text-clara-coral transition-colors"
+                  >
+                    <Plus size={14} />
+                    Or add someone manually
+                  </button>
                 </div>
               </div>
             )}
@@ -255,6 +297,62 @@ function ContactsPageContent() {
         onClose={() => setIsImportOpen(false)}
         onImportComplete={handleImportComplete}
       />
+
+      {/* Add contact sheet */}
+      <BottomSheet isOpen={isAddOpen} onClose={() => setIsAddOpen(false)}>
+        <div className="space-y-4 pb-4">
+          <div className="text-center mb-2">
+            <h2 className="text-lg font-semibold text-clara-text">Add a contact</h2>
+          </div>
+
+          <div className="space-y-3">
+            <input
+              value={addForm.full_name}
+              onChange={(e) => setAddForm((f) => ({ ...f, full_name: e.target.value }))}
+              placeholder="Name *"
+              className="w-full bg-clara-white border border-clara-border rounded-xl px-4 py-3 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors"
+              autoFocus
+            />
+            <input
+              value={addForm.company}
+              onChange={(e) => setAddForm((f) => ({ ...f, company: e.target.value }))}
+              placeholder="Company"
+              className="w-full bg-clara-white border border-clara-border rounded-xl px-4 py-3 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors"
+            />
+            <div className="flex gap-2">
+              <input
+                value={addForm.email}
+                onChange={(e) => setAddForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="Email"
+                type="email"
+                className="flex-1 bg-clara-white border border-clara-border rounded-xl px-4 py-3 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors"
+              />
+              <input
+                value={addForm.phone}
+                onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))}
+                placeholder="Phone"
+                type="tel"
+                className="flex-1 bg-clara-white border border-clara-border rounded-xl px-4 py-3 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors"
+              />
+            </div>
+            <textarea
+              value={addForm.notes}
+              onChange={(e) => setAddForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="Notes (optional)"
+              rows={2}
+              className="w-full bg-clara-white border border-clara-border rounded-xl px-4 py-3 text-sm text-clara-text outline-none focus:border-clara-coral transition-colors resize-none"
+            />
+          </div>
+
+          <button
+            onClick={handleAddContact}
+            disabled={!addForm.full_name.trim() || isAdding}
+            className="w-full py-3 rounded-xl bg-clara-coral text-white font-medium text-sm hover:bg-clara-coral-dark active:scale-[0.98] transition-all disabled:opacity-50"
+          >
+            {isAdding ? "Adding..." : "Add Contact"}
+          </button>
+        </div>
+      </BottomSheet>
     </div>
   );
 }
