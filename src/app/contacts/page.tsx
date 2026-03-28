@@ -358,13 +358,14 @@ function ContactsPageContent() {
             <div className="space-y-2">
               {filtered.map((contact, i) => {
                 // Show letter header when sorting A-Z
+                const rawLetter = contact.full_name[0]?.toUpperCase() || "";
+                const letter = /^[A-Z]$/.test(rawLetter) ? rawLetter : "#";
+                const prevRawLetter = filtered[i - 1]?.full_name[0]?.toUpperCase() || "";
+                const prevLetter = /^[A-Z]$/.test(prevRawLetter) ? prevRawLetter : "#";
                 const showLetterHeader =
                   sortBy === "name" &&
                   !searchQuery &&
-                  (i === 0 ||
-                    filtered[i - 1].full_name[0]?.toUpperCase() !==
-                      contact.full_name[0]?.toUpperCase());
-                const letter = contact.full_name[0]?.toUpperCase() || "#";
+                  (i === 0 || prevLetter !== letter);
 
                 return (
                   <div key={contact.id}>
