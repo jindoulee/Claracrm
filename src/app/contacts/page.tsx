@@ -199,6 +199,8 @@ function ContactsPageContent() {
   const [isGoogleImporting, setIsGoogleImporting] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>("recent");
+  const [visibleCount, setVisibleCount] = useState(30);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   const [googleResult, setGoogleResult] = useState<{
     imported: number;
     skipped: number;
@@ -222,6 +224,27 @@ function ContactsPageContent() {
       setIsLoading(false);
     }
   }, []);
+
+  // Reset visible count when sort or search changes
+  useEffect(() => {
+    setVisibleCount(30);
+  }, [sortBy, searchQuery]);
+
+  // Infinite scroll: load more when sentinel enters viewport
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisibleCount((prev) => prev + 30);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [contacts.length, searchQuery, sortBy]);
 
   useEffect(() => {
     fetchContacts();
@@ -365,7 +388,7 @@ function ContactsPageContent() {
     }
   };
 
-  const filtered = sortContacts(
+  const filtered = useMemo(() => sortContacts(
     contacts.filter(
       (c) =>
         c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -373,7 +396,10 @@ function ContactsPageContent() {
         c.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
     ),
     sortBy
-  );
+  ), [contacts, searchQuery, sortBy]);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   return (
     <div className="flex flex-col h-full">
@@ -426,8 +452,8 @@ function ContactsPageContent() {
           )}
         </AnimatePresence>
 
-        {/* Search bar + sort — only show when there are contacts */}
-        {contacts.length > 0 && (
+        {/* Search bar + sort — always visible (not gated behind loading) */}
+        {(!isLoading || contacts.length > 0) && !error && (
           <div className="space-y-3">
             <div className="relative">
               <Search
@@ -481,20 +507,20 @@ function ContactsPageContent() {
           </div>
         ) : (
           <>
-            {/* Contact list */}
+            {/* Contact list — renders in chunks of 30 for performance */}
             <div className="space-y-2 relative">
-              {filtered.map((contact, i) => {
+              {visible.map((contact, i) => {
                 // A-Z letter headers
                 const rawLetter = contact.full_name[0]?.toUpperCase() || "";
                 const letter = /^[A-Z]$/.test(rawLetter) ? rawLetter : "#";
-                const prevRawLetter = filtered[i - 1]?.full_name[0]?.toUpperCase() || "";
+                const prevRawLetter = visible[i - 1]?.full_name[0]?.toUpperCase() || "";
                 const prevLetter = /^[A-Z]$/.test(prevRawLetter) ? prevRawLetter : "#";
                 const showLetterHeader =
                   sortBy === "name" && !searchQuery && (i === 0 || prevLetter !== letter);
 
                 // Strength tier headers
                 const tier = getStrengthTier(contact.relationship_strength);
-                const prevTier = i > 0 ? getStrengthTier(filtered[i - 1].relationship_strength) : null;
+                const prevTier = i > 0 ? getStrengthTier(visible[i - 1].relationship_strength) : null;
                 const showStrengthHeader =
                   sortBy === "strength" && !searchQuery && (i === 0 || prevTier !== tier);
 
@@ -531,6 +557,13 @@ function ContactsPageContent() {
                   </div>
                 );
               })}
+
+              {/* Infinite scroll sentinel */}
+              {hasMore && (
+                <div ref={loadMoreRef} className="py-4 text-center">
+                  <span className="text-xs text-clara-text-muted">Loading more...</span>
+                </div>
+              )}
             </div>
 
             {/* Alphabet scrubber — right edge, only in A-Z sort */}

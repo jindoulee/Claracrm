@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("contacts")
-    .select("*")
+    .select("id, full_name, company, role, tags, relationship_strength, last_interaction_at, status")
     .eq("user_id", userId)
     .order("last_interaction_at", { ascending: false, nullsFirst: false });
 
