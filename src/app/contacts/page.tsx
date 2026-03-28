@@ -183,69 +183,6 @@ function AlphabetScrubber({ contacts }: { contacts: ContactData[] }) {
   );
 }
 
-const strengthTiers = ["strong", "okay", "fading"] as const;
-
-function StrengthScrubber({ contacts }: { contacts: ContactData[] }) {
-  const [activeTier, setActiveTier] = useState<string | null>(null);
-
-  const presentTiers = useMemo(() => {
-    const tiers = new Set<string>();
-    for (const c of contacts) {
-      tiers.add(getStrengthTier(c.relationship_strength));
-    }
-    return tiers;
-  }, [contacts]);
-
-  const scrollToTier = useCallback((tier: string) => {
-    const el = document.getElementById(`strength-${tier}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      setActiveTier(tier);
-      setTimeout(() => setActiveTier(null), 600);
-    }
-  }, []);
-
-  return (
-    <>
-      {/* Active tier indicator */}
-      <AnimatePresence>
-        {activeTier && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            className={`fixed right-16 top-1/2 -translate-y-1/2 z-50 px-4 py-3 rounded-2xl ${strengthTierBg(activeTier)} flex items-center justify-center shadow-lg`}
-          >
-            <span className="text-base font-bold text-white">{strengthTierLabel(activeTier)}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Tier scrubber — right edge */}
-      <div className="fixed right-1 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-3 py-2 select-none">
-        {strengthTiers.map((tier) => (
-          <button
-            key={tier}
-            onClick={() => {
-              if (presentTiers.has(tier)) scrollToTier(tier);
-            }}
-            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
-              presentTiers.has(tier)
-                ? `${strengthTierBg(tier)} ${activeTier === tier ? "scale-125 ring-2 ring-white shadow-md" : "opacity-70"}`
-                : "bg-clara-warm-gray opacity-30"
-            }`}
-            title={strengthTierLabel(tier)}
-          >
-            <span className="text-[8px] font-bold text-white">
-              {tier === "strong" ? "S" : tier === "okay" ? "O" : "F"}
-            </span>
-          </button>
-        ))}
-      </div>
-    </>
-  );
-}
-
 function ContactsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -601,10 +538,6 @@ function ContactsPageContent() {
               <AlphabetScrubber contacts={filtered} />
             )}
 
-            {/* Strength scrubber — right edge, only in Strength sort */}
-            {sortBy === "strength" && !searchQuery && filtered.length > 5 && (
-              <StrengthScrubber contacts={filtered} />
-            )}
 
             {/* Search empty state */}
             {filtered.length === 0 && contacts.length > 0 && (
