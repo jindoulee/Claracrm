@@ -32,10 +32,30 @@ const WELCOME_MESSAGE: ChatMessage = {
   text: "Hey! Ask Clara anything about your contacts.",
 };
 
+const CHAT_STORAGE_KEY = "clara_chat_history";
+
+function loadChatHistory(): ChatMessage[] {
+  try {
+    const stored = localStorage.getItem(CHAT_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as ChatMessage[];
+      if (parsed.length > 0) return [WELCOME_MESSAGE, ...parsed];
+    }
+  } catch {}
+  return [WELCOME_MESSAGE];
+}
+
+function saveChatHistory(messages: ChatMessage[]) {
+  try {
+    // Save all messages except the welcome message, keep last 50
+    const toSave = messages.filter((m) => m.id !== "welcome").slice(-50);
+    localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(toSave));
+  } catch {}
+}
+
 export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
   const router = useRouter();
-  // Persist messages across open/close within the same session
-  const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatHistory());
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -47,6 +67,11 @@ export function ChatSheet({ isOpen, onClose, initialMessage }: ChatSheetProps) {
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
+
+  // Persist messages to localStorage
+  useEffect(() => {
+    saveChatHistory(messages);
+  }, [messages]);
 
   useEffect(() => {
     scrollToBottom();

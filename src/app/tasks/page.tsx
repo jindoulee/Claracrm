@@ -16,6 +16,9 @@ import {
   Tag,
   Undo2,
   Mic,
+  Pencil,
+  Save,
+  X,
 } from "lucide-react";
 import { hapticSuccess, hapticLight } from "@/lib/utils/haptics";
 import { TaskListSkeleton } from "@/components/ui/Skeleton";
@@ -135,9 +138,42 @@ function UndoToast({
   );
 }
 
-// ── Task Detail (expandable) ────────────────────────────────
-function TaskDetail({ task }: { task: TaskData }) {
+// ── Task Detail (expandable, editable) ─────────────────────
+function TaskDetail({
+  task,
+  onUpdate,
+}: {
+  task: TaskData;
+  onUpdate: (id: string, updates: Partial<TaskData>) => void;
+}) {
   const ChannelIcon = channelIcons[task.channel || ""] || ChevronRight;
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
+  const [editDueAt, setEditDueAt] = useState(task.due_at ? task.due_at.slice(0, 10) : "");
+  const [editPriority, setEditPriority] = useState(task.priority);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    const updates: Record<string, unknown> = {};
+    if (editTitle !== task.title) updates.title = editTitle;
+    if (editPriority !== task.priority) updates.priority = editPriority;
+    const newDue = editDueAt ? new Date(editDueAt + "T09:00:00").toISOString() : null;
+    if (newDue !== task.due_at) updates.due_at = newDue;
+
+    if (Object.keys(updates).length > 0) {
+      onUpdate(task.id, updates as Partial<TaskData>);
+    }
+    setIsSaving(false);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditTitle(task.title);
+    setEditDueAt(task.due_at ? task.due_at.slice(0, 10) : "");
+    setEditPriority(task.priority);
+    setIsEditing(false);
+  };
 
   return (
     <motion.div
@@ -148,61 +184,136 @@ function TaskDetail({ task }: { task: TaskData }) {
       className="overflow-hidden"
     >
       <div className="pt-3 mt-3 border-t border-clara-border space-y-2.5 pl-3">
-        {/* Full title */}
-        <p className="text-sm font-medium text-clara-text">{task.title}</p>
+        {isEditing ? (
+          <>
+            {/* Edit title */}
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full text-sm font-medium text-clara-text bg-white border border-clara-border rounded-lg px-3 py-2 outline-none focus:border-clara-coral"
+            />
 
-        {/* Contact */}
-        {task.contact_name && (
-          <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
-            <span className="text-clara-text-muted">Contact:</span>
-            {task.contact_id ? (
-              <Link
-                href={`/contacts/${task.contact_id}`}
-                className="text-clara-coral font-medium underline underline-offset-2"
+            {/* Edit due date */}
+            <div className="flex items-center gap-2">
+              <Calendar size={12} className="text-clara-text-muted" />
+              <input
+                type="date"
+                value={editDueAt}
+                onChange={(e) => setEditDueAt(e.target.value)}
+                className="text-xs text-clara-text bg-white border border-clara-border rounded-lg px-3 py-1.5 outline-none focus:border-clara-coral"
+              />
+            </div>
+
+            {/* Edit priority */}
+            <div className="flex items-center gap-2">
+              <Tag size={12} className="text-clara-text-muted" />
+              <div className="flex gap-1.5">
+                {(["low", "medium", "high"] as const).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setEditPriority(p)}
+                    className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                      editPriority === p
+                        ? "border-clara-coral bg-clara-coral-light text-clara-coral font-medium"
+                        : "border-clara-border text-clara-text-secondary"
+                    }`}
+                  >
+                    {priorityLabel(p)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Save / Cancel */}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleSave}
+                disabled={isSaving || !editTitle.trim()}
+                className="flex items-center gap-1.5 text-xs font-medium text-white bg-clara-coral rounded-full px-4 py-1.5 disabled:opacity-50 active:opacity-70 transition-opacity"
               >
-                {task.contact_name}
-              </Link>
-            ) : (
-              <span>{task.contact_name}</span>
+                <Save size={12} />
+                Save
+              </button>
+              <button
+                onClick={handleCancel}
+                className="flex items-center gap-1.5 text-xs font-medium text-clara-text-secondary rounded-full px-4 py-1.5 active:opacity-70 transition-opacity"
+              >
+                <X size={12} />
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Full title + edit button */}
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-medium text-clara-text">{task.title}</p>
+              {task.status !== "done" && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex-shrink-0 p-1.5 rounded-full text-clara-text-muted hover:text-clara-coral hover:bg-clara-coral-light transition-colors"
+                  aria-label="Edit task"
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
+            </div>
+
+            {/* Contact */}
+            {task.contact_name && (
+              <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
+                <span className="text-clara-text-muted">Contact:</span>
+                {task.contact_id ? (
+                  <Link
+                    href={`/contacts/${task.contact_id}`}
+                    className="text-clara-coral font-medium underline underline-offset-2"
+                  >
+                    {task.contact_name}
+                  </Link>
+                ) : (
+                  <span>{task.contact_name}</span>
+                )}
+              </div>
             )}
-          </div>
-        )}
 
-        {/* Due date */}
-        <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
-          <Calendar size={12} className="text-clara-text-muted" />
-          <span>{formatFullDate(task.due_at)}</span>
-        </div>
+            {/* Due date */}
+            <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
+              <Calendar size={12} className="text-clara-text-muted" />
+              <span>{formatFullDate(task.due_at)}</span>
+            </div>
 
-        {/* Channel */}
-        {task.channel && (
-          <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
-            <ChannelIcon size={12} className="text-clara-text-muted" />
-            <span>{channelLabels[task.channel] || task.channel}</span>
-          </div>
-        )}
+            {/* Channel */}
+            {task.channel && (
+              <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
+                <ChannelIcon size={12} className="text-clara-text-muted" />
+                <span>{channelLabels[task.channel] || task.channel}</span>
+              </div>
+            )}
 
-        {/* Priority */}
-        <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
-          <Tag size={12} className="text-clara-text-muted" />
-          <span className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${priorityDot(task.priority)}`} />
-            {priorityLabel(task.priority)} priority
-          </span>
-        </div>
+            {/* Priority */}
+            <div className="flex items-center gap-2 text-xs text-clara-text-secondary">
+              <Tag size={12} className="text-clara-text-muted" />
+              <span className="flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${priorityDot(task.priority)}`} />
+                {priorityLabel(task.priority)} priority
+              </span>
+            </div>
 
-        {/* Description / source interaction */}
-        {task.description && (
-          <div className="text-xs text-clara-text-muted bg-clara-warm-gray rounded-lg p-2.5 mt-1">
-            {task.description}
-          </div>
-        )}
+            {/* Description */}
+            {task.description && (
+              <div className="text-xs text-clara-text-muted bg-clara-warm-gray rounded-lg p-2.5 mt-1">
+                {task.description}
+              </div>
+            )}
 
-        {/* Created date */}
-        {task.created_at && (
-          <p className="text-[11px] text-clara-text-muted pt-1">
-            Created {new Date(task.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-          </p>
+            {/* Created date */}
+            {task.created_at && (
+              <p className="text-[11px] text-clara-text-muted pt-1">
+                Created {new Date(task.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </p>
+            )}
+          </>
         )}
       </div>
     </motion.div>
@@ -351,6 +462,36 @@ export default function TasksPage() {
     }
   };
 
+  const updateTask = async (id: string, updates: Partial<TaskData>) => {
+    // Optimistic update
+    setTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+    );
+
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updates }),
+      });
+      if (!res.ok) {
+        // Revert on failure — refetch
+        const refetch = await fetch("/api/tasks?include_done=true");
+        if (refetch.ok) {
+          const data = await refetch.json();
+          setTasks(Array.isArray(data) ? data.map((t: TaskData) => normalizeTask(t)) : []);
+        }
+      }
+    } catch {
+      // Revert
+      const refetch = await fetch("/api/tasks?include_done=true");
+      if (refetch.ok) {
+        const data = await refetch.json();
+        setTasks(Array.isArray(data) ? data.map((t: TaskData) => normalizeTask(t)) : []);
+      }
+    }
+  };
+
   const handleUndo = useCallback(() => {
     if (!lastCompletedTask) return;
     hapticLight();
@@ -484,7 +625,7 @@ export default function TasksPage() {
 
                       {/* Expandable detail */}
                       <AnimatePresence>
-                        {isExpanded && <TaskDetail task={task} />}
+                        {isExpanded && <TaskDetail task={task} onUpdate={updateTask} />}
                       </AnimatePresence>
                     </motion.div>
                   );
@@ -592,7 +733,7 @@ export default function TasksPage() {
                             </div>
 
                             <AnimatePresence>
-                              {isExpanded && <TaskDetail task={task} />}
+                              {isExpanded && <TaskDetail task={task} onUpdate={updateTask} />}
                             </AnimatePresence>
                           </div>
                         );
