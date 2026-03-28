@@ -107,9 +107,8 @@ export function ContactCard({ contact, index, onClick, onHide, onRestore, mode =
       {/* Card */}
       <motion.button
         onClick={isDragging ? undefined : onClick}
-        initial={{ opacity: 0, y: 10 }}
+        initial={false}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.03 }}
         style={isSwipeable ? { x } : undefined}
         drag={isSwipeable ? "x" : false}
         dragConstraints={{ left: -160, right: 0 }}
