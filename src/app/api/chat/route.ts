@@ -1,8 +1,7 @@
 import { type NextRequest } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { CLARA_CHAT_PROMPT } from "@/lib/ai/prompts";
-import { supabase } from "@/lib/supabase/client";
-import { DEMO_USER_ID } from "@/lib/config";
+import { supabase, getUserId } from "@/lib/supabase/client";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || "placeholder",
@@ -45,7 +44,7 @@ function extractFullNames(message: string): string[] {
   return matches || [];
 }
 
-async function searchData(terms: string[], originalMessage: string) {
+async function searchData(terms: string[], originalMessage: string, userId: string) {
   const contacts: Record<string, unknown>[] = [];
   const facts: Record<string, unknown>[] = [];
   const interactions: Record<string, unknown>[] = [];
@@ -66,7 +65,7 @@ async function searchData(terms: string[], originalMessage: string) {
     const { data: contactHits } = await supabase
       .from("contacts")
       .select("id, full_name, nickname, company, role, email, phone, relationship_strength, last_interaction_at")
-      .eq("user_id", DEMO_USER_ID)
+      .eq("user_id", userId)
       .ilike("full_name", pattern)
       .limit(5);
     if (contactHits) addUnique(contacts, contactHits as Record<string, unknown>[]);
@@ -80,7 +79,7 @@ async function searchData(terms: string[], originalMessage: string) {
     const { data: contactHits } = await supabase
       .from("contacts")
       .select("id, full_name, nickname, company, role, email, phone, relationship_strength, last_interaction_at")
-      .eq("user_id", DEMO_USER_ID)
+      .eq("user_id", userId)
       .or(
         `full_name.ilike.${pattern},company.ilike.${pattern},role.ilike.${pattern},nickname.ilike.${pattern}`
       )
@@ -101,7 +100,7 @@ async function searchData(terms: string[], originalMessage: string) {
     const { data: interactionHits } = await supabase
       .from("interactions")
       .select("id, interaction_type, summary, occurred_at, sentiment")
-      .eq("user_id", DEMO_USER_ID)
+      .eq("user_id", userId)
       .ilike("summary", pattern)
       .order("occurred_at", { ascending: false })
       .limit(5);
@@ -114,7 +113,7 @@ async function searchData(terms: string[], originalMessage: string) {
     const { data: allContacts } = await supabase
       .from("contacts")
       .select("id, full_name, nickname, company, role, email, phone, relationship_strength, last_interaction_at")
-      .eq("user_id", DEMO_USER_ID)
+      .eq("user_id", userId)
       .order("last_interaction_at", { ascending: false })
       .limit(100);
 
@@ -135,7 +134,7 @@ async function searchData(terms: string[], originalMessage: string) {
       const { data: recentInteractions } = await supabase
         .from("interactions")
         .select("id, interaction_type, summary, occurred_at, sentiment")
-        .eq("user_id", DEMO_USER_ID)
+        .eq("user_id", userId)
         .order("occurred_at", { ascending: false })
         .limit(20);
 
@@ -184,7 +183,7 @@ async function searchData(terms: string[], originalMessage: string) {
   const { data: allTasks } = await supabase
     .from("tasks")
     .select("id, title, description, due_at, status, priority, channel, contact_id")
-    .eq("user_id", DEMO_USER_ID)
+    .eq("user_id", userId)
     .order("due_at", { ascending: true, nullsFirst: false })
     .limit(100);
 
@@ -310,6 +309,7 @@ interface HistoryMessage {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getUserId();
     const { message, history } = await request.json() as {
       message: string;
       history?: HistoryMessage[];
@@ -324,7 +324,7 @@ export async function POST(request: NextRequest) {
 
     // Extract search terms and fetch relevant data
     const terms = extractSearchTerms(message);
-    const sources = await searchData(terms, message);
+    const sources = await searchData(terms, message, userId);
 
     // Build context for the AI
     let dataContext = "";

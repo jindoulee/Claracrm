@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 
 interface GooglePerson {
   names?: { displayName?: string; givenName?: string; familyName?: string }[];
@@ -15,6 +15,7 @@ interface GooglePerson {
  * fetches contacts from People API, and imports them.
  */
 export async function POST(req: NextRequest) {
+  const userId = await getUserId();
   const accessToken = req.cookies.get("google_import_token")?.value;
 
   if (!accessToken) {
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
     const { data: batch } = await supabase
       .from("import_batches")
       .insert({
-        user_id: DEMO_USER_ID,
+        user_id: userId,
         source: "google",
         filename: "Google Contacts",
         total_records: deduped.length,
@@ -126,7 +127,7 @@ export async function POST(req: NextRequest) {
     const { data: existing } = await supabase
       .from("contacts")
       .select("id, full_name, email")
-      .eq("user_id", DEMO_USER_ID);
+      .eq("user_id", userId);
 
     const existingByName = new Map(
       (existing || []).map((c) => [
@@ -152,7 +153,7 @@ export async function POST(req: NextRequest) {
           "find_similar_contacts",
           {
             search_name: contact.full_name,
-            p_user_id: DEMO_USER_ID,
+            p_user_id: userId,
             similarity_threshold: 0.5,
           }
         );
@@ -172,7 +173,7 @@ export async function POST(req: NextRequest) {
       const { data: newContact } = await supabase
         .from("contacts")
         .insert({
-          user_id: DEMO_USER_ID,
+          user_id: userId,
           full_name: contact.full_name,
           email: contact.email,
           phone: contact.phone,
@@ -195,7 +196,7 @@ export async function POST(req: NextRequest) {
         // Flag fuzzy match as merge candidate
         if (fuzzyMatchId) {
           await supabase.from("contact_merge_candidates").insert({
-            user_id: DEMO_USER_ID,
+            user_id: userId,
             contact_id_a: fuzzyMatchId,
             contact_id_b: newContact.id,
             similarity_score: fuzzyScore,

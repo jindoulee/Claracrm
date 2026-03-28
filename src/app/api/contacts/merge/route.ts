@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 
 /** GET — list pending merge candidates */
 export async function GET() {
+  const userId = await getUserId();
   const { data, error } = await supabase
     .from("contact_merge_candidates")
     .select(`
@@ -13,7 +14,7 @@ export async function GET() {
       contact_a:contact_id_a (id, full_name, email, phone, company, role),
       contact_b:contact_id_b (id, full_name, email, phone, company, role)
     `)
-    .eq("user_id", DEMO_USER_ID)
+    .eq("user_id", userId)
     .eq("resolution", "pending")
     .order("similarity_score", { ascending: false });
 

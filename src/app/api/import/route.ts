@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 import { parseVCF } from "@/lib/utils/vcf-parser";
 import { parseCSV } from "@/lib/utils/csv-parser";
 import type { ParsedContact } from "@/lib/utils/vcf-parser";
@@ -155,6 +155,7 @@ async function importContacts(
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getUserId();
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
@@ -204,7 +205,7 @@ export async function POST(req: NextRequest) {
     const { data: batch, error: batchError } = await supabase
       .from("import_batches")
       .insert({
-        user_id: DEMO_USER_ID,
+        user_id: userId,
         source: filename.endsWith(".csv") ? "csv" : "vcf",
         filename: file.name,
         total_records: deduped.length,
@@ -221,7 +222,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Run the import
-    const stats = await importContacts(DEMO_USER_ID, batch.id, deduped);
+    const stats = await importContacts(userId, batch.id, deduped);
 
     // Update batch record with results
     await supabase

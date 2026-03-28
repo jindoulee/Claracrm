@@ -7,13 +7,11 @@ import type {
   ExtractedInteraction,
   ContactMatchResult,
 } from "./types";
-import { DEMO_USER_ID } from "@/lib/config";
-
 // ============================================
 // CONTACTS
 // ============================================
 
-export async function getContacts(userId: string = DEMO_USER_ID) {
+export async function getContacts(userId: string) {
   const { data, error } = await supabase
     .from("contacts")
     .select("*")
@@ -275,7 +273,7 @@ export async function createTask(
   return task as Record<string, unknown>;
 }
 
-export async function getTasks(userId: string = DEMO_USER_ID) {
+export async function getTasks(userId: string) {
   const { data, error } = await supabase
     .from("tasks")
     .select(`
@@ -374,7 +372,7 @@ export async function boostRelationshipStrength(
   }
 }
 
-export async function getDecayingContacts(userId: string = DEMO_USER_ID) {
+export async function getDecayingContacts(userId: string) {
   const fourteenDaysAgo = new Date(
     Date.now() - 14 * 24 * 60 * 60 * 1000
   ).toISOString();
@@ -391,7 +389,7 @@ export async function getDecayingContacts(userId: string = DEMO_USER_ID) {
   return data;
 }
 
-export async function getFadingRelationships(userId: string = DEMO_USER_ID) {
+export async function getFadingRelationships(userId: string) {
   const { data, error } = await supabase
     .from("contacts")
     .select("*")

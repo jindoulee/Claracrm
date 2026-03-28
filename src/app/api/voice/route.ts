@@ -14,10 +14,11 @@ import {
   boostRelationshipStrength,
 } from "@/lib/supabase/queries";
 import type { ContactMatchInfo } from "@/lib/supabase/types";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 
 export async function POST(req: NextRequest) {
   try {
+    const userId = await getUserId();
     const { transcript, existingContacts } = await req.json();
 
     if (!transcript || typeof transcript !== "string") {
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
       const contactMap = new Map<string, string>(); // name -> id
       for (const extractedContact of result.contacts) {
         const matchResult = await findOrCreateContact(
-          DEMO_USER_ID,
+          userId,
           extractedContact.name,
           extractedContact.match_hints
         );
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
       // Create the interaction linked to all resolved contacts
       if (result.interaction) {
         const interaction = await createInteraction(
-          DEMO_USER_ID,
+          userId,
           result.interaction,
           dbIds.contactIds
         );
@@ -174,7 +175,7 @@ export async function POST(req: NextRequest) {
         const contactId = contactMap.get(followUp.contact) || null;
         const dueAt = calculateDueDate(followUp.due);
 
-        const task = await createTask(DEMO_USER_ID, {
+        const task = await createTask(userId, {
           title: followUp.action,
           due_at: dueAt,
           channel: followUp.channel,

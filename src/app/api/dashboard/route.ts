@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
 import { getFadingRelationships } from "@/lib/supabase/queries";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 
 export async function GET() {
   try {
+    const userId = await getUserId();
     // Run all queries in parallel
     const [
       tasksResult,
@@ -18,19 +19,19 @@ export async function GET() {
       supabase
         .from("tasks")
         .select("*, contacts:contact_id (id, full_name, avatar_url)")
-        .eq("user_id", DEMO_USER_ID)
+        .eq("user_id", userId)
         .in("status", ["pending", "snoozed"])
         .order("due_at", { ascending: true, nullsFirst: false })
         .limit(5),
 
       // Fading relationships
-      getFadingRelationships(DEMO_USER_ID),
+      getFadingRelationships(userId),
 
       // Recent interactions with contact names
       supabase
         .from("interactions")
         .select("*, interaction_contacts(contact_id, contacts:contact_id(id, full_name, avatar_url))")
-        .eq("user_id", DEMO_USER_ID)
+        .eq("user_id", userId)
         .order("occurred_at", { ascending: false })
         .limit(5),
 
@@ -38,19 +39,19 @@ export async function GET() {
       supabase
         .from("contacts")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", DEMO_USER_ID),
+        .eq("user_id", userId),
 
       // Total interactions count
       supabase
         .from("interactions")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", DEMO_USER_ID),
+        .eq("user_id", userId),
 
       // Tasks due today
       supabase
         .from("tasks")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", DEMO_USER_ID)
+        .eq("user_id", userId)
         .in("status", ["pending", "snoozed"])
         .gte("due_at", new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
         .lte("due_at", new Date(new Date().setHours(23, 59, 59, 999)).toISOString()),

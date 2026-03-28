@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 
 export async function GET() {
+  const userId = await getUserId();
   const { data, error } = await supabase
     .from("contacts")
     .select("*")
-    .eq("user_id", DEMO_USER_ID)
+    .eq("user_id", userId)
     .order("last_interaction_at", { ascending: false, nullsFirst: false });
 
   if (error) {
@@ -17,12 +18,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const userId = await getUserId();
   const body = await req.json();
 
   const { data, error } = await supabase
     .from("contacts")
     .insert({
-      user_id: DEMO_USER_ID,
+      user_id: userId,
       ...body,
     })
     .select()

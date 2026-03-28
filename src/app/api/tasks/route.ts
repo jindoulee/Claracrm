@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 
 export async function GET(req: NextRequest) {
+  const userId = await getUserId();
   const includeDone = req.nextUrl.searchParams.get("include_done") === "true";
 
   const statusFilter = includeDone
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
       *,
       contacts:contact_id (id, full_name, avatar_url)
     `)
-    .eq("user_id", DEMO_USER_ID)
+    .eq("user_id", userId)
     .in("status", statusFilter)
     .order("due_at", { ascending: true, nullsFirst: false });
 
@@ -27,12 +28,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const userId = await getUserId();
   const body = await req.json();
 
   const { data, error } = await supabase
     .from("tasks")
     .insert({
-      user_id: DEMO_USER_ID,
+      user_id: userId,
       ...body,
     })
     .select()
@@ -46,10 +48,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE() {
+  const userId = await getUserId();
   const { error, count } = await supabase
     .from("tasks")
     .delete({ count: "exact" })
-    .eq("user_id", DEMO_USER_ID)
+    .eq("user_id", userId)
     .eq("status", "done");
 
   if (error) {
@@ -60,6 +63,7 @@ export async function DELETE() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const userId = await getUserId();
   const { id, ...updates } = await req.json();
 
   const { data, error } = await supabase

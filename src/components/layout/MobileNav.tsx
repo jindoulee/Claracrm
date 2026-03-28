@@ -14,7 +14,7 @@ export function MobileNav() {
   const pathname = usePathname();
 
   // Hide nav on fullscreen pages
-  if (pathname === "/onboarding") return null;
+  if (pathname === "/onboarding" || pathname === "/login") return null;
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 bg-clara-white/90 backdrop-blur-lg border-t border-clara-border safe-bottom">

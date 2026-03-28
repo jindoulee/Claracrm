@@ -1,8 +1,9 @@
 import { type NextRequest } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 
 export async function GET(request: NextRequest) {
+  const userId = await getUserId();
   const query = request.nextUrl.searchParams.get("q");
 
   if (!query || typeof query !== "string") {
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     const { data: contacts } = await supabase
       .from("contacts")
       .select("id, full_name, nickname, company, role, avatar_url")
-      .eq("user_id", DEMO_USER_ID)
+      .eq("user_id", userId)
       .or(
         `full_name.ilike.${pattern},company.ilike.${pattern},role.ilike.${pattern},nickname.ilike.${pattern}`
       )
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
     const { data: interactionsRaw } = await supabase
       .from("interactions")
       .select("id, interaction_type, summary, occurred_at, sentiment")
-      .eq("user_id", DEMO_USER_ID)
+      .eq("user_id", userId)
       .ilike("summary", pattern)
       .order("occurred_at", { ascending: false })
       .limit(10);

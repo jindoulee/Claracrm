@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { MobileNav } from "./MobileNav";
 import { ToastProvider } from "@/components/ui/Toast";
 
-const fullscreenPages = ["/onboarding"];
+const fullscreenPages = ["/onboarding", "/login"];
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
-import { DEMO_USER_ID } from "@/lib/config";
+import { getUserId } from "@/lib/supabase/client";
 
 export async function GET() {
+  const userId = await getUserId();
   const { data, error } = await supabase
     .from("interactions")
     .select("*, interaction_contacts(contact_id, contacts:contact_id(id, full_name))")
-    .eq("user_id", DEMO_USER_ID)
+    .eq("user_id", userId)
     .order("occurred_at", { ascending: false })
     .limit(50);
 
@@ -34,6 +35,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const userId = await getUserId();
   const body = await req.json();
   const { contact_ids, ...interactionData } = body;
 
@@ -41,7 +43,7 @@ export async function POST(req: NextRequest) {
   const { data: interaction, error } = await supabase
     .from("interactions")
     .insert({
-      user_id: DEMO_USER_ID,
+      user_id: userId,
       ...interactionData,
     })
     .select()
