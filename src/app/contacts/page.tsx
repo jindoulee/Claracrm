@@ -33,8 +33,13 @@ const sortOptions: { value: SortOption; label: string; icon: typeof Clock }[] = 
 function sortContacts(contacts: ContactData[], sort: SortOption): ContactData[] {
   return [...contacts].sort((a, b) => {
     switch (sort) {
-      case "name":
+      case "name": {
+        const aIsAlpha = /^[A-Za-z]/.test(a.full_name);
+        const bIsAlpha = /^[A-Za-z]/.test(b.full_name);
+        // Non-alpha names sort to the top (# section)
+        if (aIsAlpha !== bIsAlpha) return aIsAlpha ? 1 : -1;
         return a.full_name.localeCompare(b.full_name);
+      }
       case "strength":
         return (b.relationship_strength ?? 0) - (a.relationship_strength ?? 0);
       case "recent":
@@ -42,6 +47,30 @@ function sortContacts(contacts: ContactData[], sort: SortOption): ContactData[] 
         return (b.last_interaction_at || "").localeCompare(a.last_interaction_at || "");
     }
   });
+}
+
+function getStrengthTier(strength: number): string {
+  if (strength >= 70) return "strong";
+  if (strength >= 40) return "okay";
+  return "fading";
+}
+
+function strengthTierLabel(tier: string): string {
+  if (tier === "strong") return "Strong";
+  if (tier === "okay") return "Okay";
+  return "Fading";
+}
+
+function strengthTierColor(tier: string): string {
+  if (tier === "strong") return "text-clara-green";
+  if (tier === "okay") return "text-clara-amber";
+  return "text-red-400";
+}
+
+function strengthTierBg(tier: string): string {
+  if (tier === "strong") return "bg-clara-green";
+  if (tier === "okay") return "bg-clara-amber";
+  return "bg-red-400";
 }
 
 // Google icon SVG as a component
@@ -71,7 +100,7 @@ function AlphabetScrubber({ contacts }: { contacts: ContactData[] }) {
     return letters;
   }, [contacts]);
 
-  const allLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
+  const allLetters = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
   const scrollToLetter = useCallback((letter: string) => {
     const el = document.getElementById(`letter-${letter}`);
@@ -147,6 +176,69 @@ function AlphabetScrubber({ contacts }: { contacts: ContactData[] }) {
             }`}
           >
             {letter}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+const strengthTiers = ["strong", "okay", "fading"] as const;
+
+function StrengthScrubber({ contacts }: { contacts: ContactData[] }) {
+  const [activeTier, setActiveTier] = useState<string | null>(null);
+
+  const presentTiers = useMemo(() => {
+    const tiers = new Set<string>();
+    for (const c of contacts) {
+      tiers.add(getStrengthTier(c.relationship_strength));
+    }
+    return tiers;
+  }, [contacts]);
+
+  const scrollToTier = useCallback((tier: string) => {
+    const el = document.getElementById(`strength-${tier}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveTier(tier);
+      setTimeout(() => setActiveTier(null), 600);
+    }
+  }, []);
+
+  return (
+    <>
+      {/* Active tier indicator */}
+      <AnimatePresence>
+        {activeTier && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className={`fixed right-16 top-1/2 -translate-y-1/2 z-50 px-4 py-3 rounded-2xl ${strengthTierBg(activeTier)} flex items-center justify-center shadow-lg`}
+          >
+            <span className="text-base font-bold text-white">{strengthTierLabel(activeTier)}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Tier scrubber — right edge */}
+      <div className="fixed right-1 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-3 py-2 select-none">
+        {strengthTiers.map((tier) => (
+          <button
+            key={tier}
+            onClick={() => {
+              if (presentTiers.has(tier)) scrollToTier(tier);
+            }}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${
+              presentTiers.has(tier)
+                ? `${strengthTierBg(tier)} ${activeTier === tier ? "scale-125 ring-2 ring-white shadow-md" : "opacity-70"}`
+                : "bg-clara-warm-gray opacity-30"
+            }`}
+            title={strengthTierLabel(tier)}
+          >
+            <span className="text-[8px] font-bold text-white">
+              {tier === "strong" ? "S" : tier === "okay" ? "O" : "F"}
+            </span>
           </button>
         ))}
       </div>
@@ -455,12 +547,19 @@ function ContactsPageContent() {
             {/* Contact list */}
             <div className="space-y-2 relative">
               {filtered.map((contact, i) => {
+                // A-Z letter headers
                 const rawLetter = contact.full_name[0]?.toUpperCase() || "";
                 const letter = /^[A-Z]$/.test(rawLetter) ? rawLetter : "#";
                 const prevRawLetter = filtered[i - 1]?.full_name[0]?.toUpperCase() || "";
                 const prevLetter = /^[A-Z]$/.test(prevRawLetter) ? prevRawLetter : "#";
                 const showLetterHeader =
                   sortBy === "name" && !searchQuery && (i === 0 || prevLetter !== letter);
+
+                // Strength tier headers
+                const tier = getStrengthTier(contact.relationship_strength);
+                const prevTier = i > 0 ? getStrengthTier(filtered[i - 1].relationship_strength) : null;
+                const showStrengthHeader =
+                  sortBy === "strength" && !searchQuery && (i === 0 || prevTier !== tier);
 
                 return (
                   <div key={contact.id}>
@@ -471,6 +570,17 @@ function ContactsPageContent() {
                       >
                         <span className="text-[11px] font-bold text-clara-coral">
                           {letter}
+                        </span>
+                      </div>
+                    )}
+                    {showStrengthHeader && (
+                      <div
+                        id={`strength-${tier}`}
+                        className="pt-3 pb-1.5 -mx-5 px-5 flex items-center gap-2"
+                      >
+                        <div className={`w-2 h-2 rounded-full ${strengthTierBg(tier)}`} />
+                        <span className={`text-[11px] font-bold ${strengthTierColor(tier)}`}>
+                          {strengthTierLabel(tier)}
                         </span>
                       </div>
                     )}
@@ -489,6 +599,11 @@ function ContactsPageContent() {
             {/* Alphabet scrubber — right edge, only in A-Z sort */}
             {sortBy === "name" && !searchQuery && filtered.length > 10 && (
               <AlphabetScrubber contacts={filtered} />
+            )}
+
+            {/* Strength scrubber — right edge, only in Strength sort */}
+            {sortBy === "strength" && !searchQuery && filtered.length > 5 && (
+              <StrengthScrubber contacts={filtered} />
             )}
 
             {/* Search empty state */}
