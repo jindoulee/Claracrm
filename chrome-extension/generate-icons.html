@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate Clara Icons</title></head>
+<body>
+<p>Open this file in a browser, right-click each canvas, and "Save Image As" to create the icon PNGs.</p>
+<div>
+  <p>16x16:</p><canvas id="c16" width="16" height="16"></canvas>
+  <p>48x48:</p><canvas id="c48" width="48" height="48"></canvas>
+  <p>128x128:</p><canvas id="c128" width="128" height="128"></canvas>
+</div>
+<script>
+function drawIcon(canvas) {
+  const ctx = canvas.getContext("2d");
+  const s = canvas.width;
+  // Background circle
+  ctx.fillStyle = "#E8725C";
+  ctx.beginPath();
+  ctx.arc(s/2, s/2, s/2, 0, Math.PI * 2);
+  ctx.fill();
+  // Letter C
+  ctx.fillStyle = "#fff";
+  ctx.font = `bold ${s * 0.55}px -apple-system, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("C", s/2, s/2 + s*0.02);
+}
+drawIcon(document.getElementById("c16"));
+drawIcon(document.getElementById("c48"));
+drawIcon(document.getElementById("c128"));
+</script>
+</body>
+</html>

@@ -128,6 +128,25 @@ function HomePageContent() {
     fadingContacts: { id: string; full_name: string }[];
   } | null>(null);
 
+  // Calendar suggestions
+  interface CalendarEvent {
+    id: string;
+    summary: string;
+    start: string;
+    end: string;
+    attendees: Array<{
+      email: string;
+      displayName: string;
+      matched_contact: { id: string; full_name: string } | null;
+    }>;
+    location: string | null;
+    isPast: boolean;
+    alreadyLogged: boolean;
+  }
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [loggingEventId, setLoggingEventId] = useState<string | null>(null);
+
   // Read chat query param on mount to open chat sheet with initial message
   useEffect(() => {
     const chatParam = searchParams.get("chat");
@@ -165,6 +184,58 @@ function HomePageContent() {
     }
     fetchDashboard();
   }, []);
+
+  // Fetch calendar events for suggestions
+  useEffect(() => {
+    async function fetchCalendar() {
+      try {
+        const res = await fetch("/api/calendar/events");
+        if (!res.ok) return;
+        const data = await res.json();
+        setCalendarConnected(data.connected || false);
+        if (data.events) {
+          // Only show past unlogged events as suggestions
+          setCalendarEvents(
+            data.events.filter((e: CalendarEvent) => e.isPast && !e.alreadyLogged)
+          );
+        }
+      } catch {
+        // Calendar not connected — that's fine
+      }
+    }
+    fetchCalendar();
+  }, []);
+
+  const handleLogCalendarEvent = async (event: CalendarEvent) => {
+    setLoggingEventId(event.id);
+    const contactIds = event.attendees
+      .filter((a) => a.matched_contact)
+      .map((a) => a.matched_contact!.id);
+
+    try {
+      const res = await fetch("/api/calendar/log", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: event.id,
+          summary: `Meeting: ${event.summary}`,
+          attendeeContactIds: contactIds,
+          location: event.location,
+          occurredAt: event.start,
+        }),
+      });
+      if (res.ok || res.status === 409) {
+        // Remove from suggestions
+        setCalendarEvents((prev) => prev.filter((e) => e.id !== event.id));
+        showToast("Meeting logged!");
+        hapticSuccess();
+      }
+    } catch {
+      showToast("Couldn't log meeting", "error");
+    } finally {
+      setLoggingEventId(null);
+    }
+  };
 
   // Fallback: also fetch from interactions endpoint if dashboard doesn't provide them
   useEffect(() => {
@@ -456,6 +527,95 @@ function HomePageContent() {
                   </button>
                 ))}
               </div>
+            </motion.section>
+          )}
+
+          {/* ---- Calendar Suggestions ---- */}
+          {calendarEvents.length > 0 && (
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              <h2 className="flex items-center gap-1.5 text-xs font-semibold text-clara-text-muted uppercase tracking-wider px-1 mb-3">
+                <CalendarDays size={13} className="text-clara-coral" />
+                Recent meetings
+              </h2>
+              <div className="space-y-2">
+                {calendarEvents.slice(0, 3).map((event) => {
+                  const matchedContacts = event.attendees.filter((a) => a.matched_contact);
+                  const isLogging = loggingEventId === event.id;
+                  const eventTime = new Date(event.start);
+                  const timeStr = eventTime.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  });
+
+                  return (
+                    <div
+                      key={event.id}
+                      className="clara-card p-3.5 flex items-start gap-3"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center flex-shrink-0">
+                        <Users size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-clara-text truncate">
+                          {event.summary}
+                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-clara-text-muted">{timeStr}</span>
+                          {matchedContacts.length > 0 && (
+                            <span className="text-xs text-clara-text-secondary truncate">
+                              with {matchedContacts.map((a) => a.matched_contact!.full_name).join(", ")}
+                            </span>
+                          )}
+                          {matchedContacts.length === 0 && event.attendees.length > 0 && (
+                            <span className="text-xs text-clara-text-muted truncate">
+                              {event.attendees.length} attendee{event.attendees.length !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleLogCalendarEvent(event)}
+                        disabled={isLogging}
+                        className="flex-shrink-0 text-xs font-medium text-clara-coral bg-clara-coral-light px-3 py-1.5 rounded-full active:opacity-70 disabled:opacity-40 transition-opacity"
+                      >
+                        {isLogging ? "..." : "Log"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.section>
+          )}
+
+          {/* Connect Calendar prompt — show if not connected and user has some data */}
+          {!calendarConnected && !isDashboardLoading && !hasNoData && (
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, delay: 0.2 }}
+            >
+              <button
+                onClick={() => {
+                  window.location.href = "/api/auth/google/calendar";
+                }}
+                className="w-full clara-card p-3.5 flex items-center gap-3 text-left hover:shadow-md active:scale-[0.98] transition-all"
+              >
+                <div className="w-9 h-9 rounded-full bg-clara-warm-gray text-clara-text-muted flex items-center justify-center flex-shrink-0">
+                  <CalendarDays size={16} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-clara-text">
+                    Connect Google Calendar
+                  </p>
+                  <p className="text-xs text-clara-text-muted">
+                    Clara will suggest logging your meetings
+                  </p>
+                </div>
+              </button>
             </motion.section>
           )}
 

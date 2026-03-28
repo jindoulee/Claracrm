@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clara CRM</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 360px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #FDF8F4;
+      color: #2D2926;
+    }
+
+    .header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid #E8E2DC;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 { font-size: 16px; font-weight: 600; }
+    .header .subtitle { font-size: 11px; color: #8C857E; }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #8C857E;
+    }
+    .status-dot.connected { background: #4CAF50; }
+    .status-dot.error { background: #E8725C; }
+
+    .content { padding: 16px 20px; }
+
+    /* States */
+    .state { display: none; }
+    .state.active { display: block; }
+
+    /* Not connected */
+    .connect-msg {
+      text-align: center;
+      padding: 24px 16px;
+    }
+    .connect-msg p { font-size: 13px; color: #8C857E; margin-bottom: 12px; line-height: 1.5; }
+    .connect-msg a {
+      display: inline-block;
+      background: #E8725C;
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    /* Preview */
+    .preview-card {
+      background: #fff;
+      border: 1px solid #E8E2DC;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .preview-type {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #8C857E;
+      margin-bottom: 8px;
+    }
+    .preview-type .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #E8725C;
+    }
+    .preview-contacts {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    .preview-summary {
+      font-size: 12px;
+      color: #5C5550;
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .preview-meta {
+      margin-top: 8px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .preview-meta .badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #F5F0EB;
+      color: #5C5550;
+    }
+
+    /* Buttons */
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s;
+    }
+    .btn:active { opacity: 0.7; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: #E8725C; color: #fff; }
+    .btn-secondary { background: #F5F0EB; color: #5C5550; }
+
+    /* Loading */
+    .loading {
+      text-align: center;
+      padding: 32px 16px;
+    }
+    .spinner {
+      width: 24px; height: 24px;
+      border: 2px solid #E8E2DC;
+      border-top-color: #E8725C;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 13px; color: #8C857E; }
+
+    /* Success */
+    .success {
+      text-align: center;
+      padding: 24px 16px;
+    }
+    .success-icon {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: #E8F5E9;
+      color: #4CAF50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 12px;
+      font-size: 20px;
+    }
+    .success h3 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .success p { font-size: 12px; color: #8C857E; line-height: 1.5; }
+
+    /* Error */
+    .error-msg {
+      text-align: center;
+      padding: 24px 16px;
+    }
+    .error-msg p { font-size: 13px; color: #E8725C; margin-bottom: 12px; }
+
+    /* Empty / extracting */
+    .extracting {
+      text-align: center;
+      padding: 24px 16px;
+    }
+    .extracting p { font-size: 13px; color: #8C857E; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Clara</h1>
+      <span class="subtitle">Clip to CRM</span>
+    </div>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+
+  <div class="content">
+    <!-- Not connected state -->
+    <div class="state" id="stateNotConnected">
+      <div class="connect-msg">
+        <p>Log in to Clara CRM first, then come back here.</p>
+        <a id="openAppLink" href="#" target="_blank">Open Clara</a>
+      </div>
+    </div>
+
+    <!-- Extracting from page -->
+    <div class="state" id="stateExtracting">
+      <div class="loading">
+        <div class="spinner"></div>
+        <div class="loading-text">Reading page content...</div>
+      </div>
+    </div>
+
+    <!-- Preview state -->
+    <div class="state" id="statePreview">
+      <div class="preview-card">
+        <div class="preview-type">
+          <span class="dot"></span>
+          <span id="previewType">Email</span>
+        </div>
+        <div class="preview-contacts" id="previewContacts"></div>
+        <div class="preview-summary" id="previewSummary"></div>
+        <div class="preview-meta" id="previewMeta"></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="btnCancel">Cancel</button>
+        <button class="btn btn-primary" id="btnSave">Save to Clara</button>
+      </div>
+    </div>
+
+    <!-- Saving state -->
+    <div class="state" id="stateSaving">
+      <div class="loading">
+        <div class="spinner"></div>
+        <div class="loading-text">Clara is processing...</div>
+      </div>
+    </div>
+
+    <!-- Success state -->
+    <div class="state" id="stateSuccess">
+      <div class="success">
+        <div class="success-icon">&#10003;</div>
+        <h3>Saved!</h3>
+        <p id="successMsg"></p>
+      </div>
+    </div>
+
+    <!-- Error state -->
+    <div class="state" id="stateError">
+      <div class="error-msg">
+        <p id="errorMsg">Something went wrong.</p>
+        <div class="btn-row">
+          <button class="btn btn-secondary" id="btnRetry">Try again</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nothing useful on page -->
+    <div class="state" id="stateEmpty">
+      <div class="extracting">
+        <p>Clara couldn't find any useful content on this page. Try opening an email thread or a contact's profile.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
