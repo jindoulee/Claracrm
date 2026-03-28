@@ -64,7 +64,7 @@ export default function OnboardingPage() {
   }, [router]);
 
   return (
-    <div className="min-h-screen bg-clara-warm flex flex-col items-center justify-between px-6 py-12 safe-top safe-bottom">
+    <div className="h-[100dvh] bg-clara-warm flex flex-col items-center justify-between px-6 py-12 safe-top safe-bottom">
       {/* Skip button */}
       <div className="w-full max-w-sm flex justify-end">
         <button

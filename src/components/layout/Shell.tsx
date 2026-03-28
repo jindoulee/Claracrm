@@ -1,13 +1,19 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { MobileNav } from "./MobileNav";
 import { ToastProvider } from "@/components/ui/Toast";
 
+const fullscreenPages = ["/onboarding"];
+
 export function Shell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isFullscreen = fullscreenPages.includes(pathname);
+
   return (
     <ToastProvider>
       <div className="flex flex-col h-full bg-clara-cream">
-        <main className="flex-1 overflow-y-auto overscroll-contain pb-20">
+        <main className={`flex-1 overflow-y-auto overscroll-contain ${isFullscreen ? "" : "pb-20"}`}>
           {children}
         </main>
         <MobileNav />
