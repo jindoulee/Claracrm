@@ -125,7 +125,7 @@ function HomePageContent() {
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [briefing, setBriefing] = useState<{
     tasksDueToday: number;
-    fadingContacts: string[];
+    fadingContacts: { id: string; full_name: string }[];
   } | null>(null);
 
   // Read chat query param on mount to open chat sheet with initial message
@@ -150,12 +150,12 @@ function HomePageContent() {
         if (data.recentInteractions) setRecentInteractions(data.recentInteractions);
 
         // Build briefing data
-        const fadingNames = (data.fadingRelationships || [])
+        const fadingPeople = (data.fadingRelationships || [])
           .slice(0, 3)
-          .map((c: { full_name: string }) => c.full_name);
+          .map((c: { id: string; full_name: string }) => ({ id: c.id, full_name: c.full_name }));
         const dueToday = data.stats?.tasksDueToday || 0;
-        if (dueToday > 0 || fadingNames.length > 0) {
-          setBriefing({ tasksDueToday: dueToday, fadingContacts: fadingNames });
+        if (dueToday > 0 || fadingPeople.length > 0) {
+          setBriefing({ tasksDueToday: dueToday, fadingContacts: fadingPeople });
         }
       } catch {
         // Silently fail — sections will show empty states
@@ -421,20 +421,40 @@ function HomePageContent() {
                 <Calendar size={13} className="text-clara-coral" />
                 Your day
               </h2>
-              <div className="clara-card p-4 space-y-2">
+              <div className="space-y-2">
                 {briefing.tasksDueToday > 0 && (
-                  <p className="text-sm text-clara-text">
-                    You have <strong>{briefing.tasksDueToday}</strong>{" "}
-                    follow-up{briefing.tasksDueToday !== 1 ? "s" : ""} due today.
-                  </p>
+                  <button
+                    onClick={() => router.push("/tasks")}
+                    className="w-full clara-card p-3.5 flex items-center gap-3 text-left hover:shadow-md active:scale-[0.98] transition-all"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-clara-coral-light text-clara-coral flex items-center justify-center flex-shrink-0">
+                      <CalendarDays size={16} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-clara-text">
+                        {briefing.tasksDueToday} follow-up{briefing.tasksDueToday !== 1 ? "s" : ""} due today
+                      </p>
+                      <p className="text-xs text-clara-text-muted">Tap to view</p>
+                    </div>
+                  </button>
                 )}
-                {briefing.fadingContacts.length > 0 && (
-                  <p className="text-sm text-clara-text-secondary">
-                    {briefing.fadingContacts.length === 1
-                      ? `${briefing.fadingContacts[0]} might be worth checking in on.`
-                      : `${briefing.fadingContacts.slice(0, -1).join(", ")} and ${briefing.fadingContacts.at(-1)} might be worth checking in on.`}
-                  </p>
-                )}
+                {briefing.fadingContacts.map((contact) => (
+                  <button
+                    key={contact.id}
+                    onClick={() => router.push(`/contacts/${contact.id}`)}
+                    className="w-full clara-card p-3.5 flex items-center gap-3 text-left hover:shadow-md active:scale-[0.98] transition-all"
+                  >
+                    <div className="w-9 h-9 rounded-full bg-clara-warm-gray text-clara-text-muted flex items-center justify-center flex-shrink-0 text-xs font-bold">
+                      {contact.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-clara-text">
+                        {contact.full_name}
+                      </p>
+                      <p className="text-xs text-clara-text-muted">Worth checking in on</p>
+                    </div>
+                  </button>
+                ))}
               </div>
             </motion.section>
           )}
