@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
@@ -53,6 +53,104 @@ function GoogleIcon({ size = 16 }: { size?: number }) {
       <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
       <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
     </svg>
+  );
+}
+
+function AlphabetScrubber({ contacts }: { contacts: ContactData[] }) {
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const scrubberRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+
+  // Compute which letters have contacts
+  const presentLetters = useMemo(() => {
+    const letters = new Set<string>();
+    for (const c of contacts) {
+      const ch = c.full_name[0]?.toUpperCase() || "";
+      letters.add(/^[A-Z]$/.test(ch) ? ch : "#");
+    }
+    return letters;
+  }, [contacts]);
+
+  const allLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
+
+  const scrollToLetter = useCallback((letter: string) => {
+    const el = document.getElementById(`letter-${letter}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveLetter(letter);
+    }
+  }, []);
+
+  const getLetterFromTouch = useCallback((clientY: number) => {
+    if (!scrubberRef.current) return null;
+    const rect = scrubberRef.current.getBoundingClientRect();
+    const y = clientY - rect.top;
+    const idx = Math.floor((y / rect.height) * allLetters.length);
+    const clamped = Math.max(0, Math.min(allLetters.length - 1, idx));
+    return allLetters[clamped];
+  }, [allLetters]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    isDragging.current = true;
+    const letter = getLetterFromTouch(e.touches[0].clientY);
+    if (letter && presentLetters.has(letter)) scrollToLetter(letter);
+  }, [getLetterFromTouch, presentLetters, scrollToLetter]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging.current) return;
+    e.preventDefault();
+    const letter = getLetterFromTouch(e.touches[0].clientY);
+    if (letter && presentLetters.has(letter)) scrollToLetter(letter);
+  }, [getLetterFromTouch, presentLetters, scrollToLetter]);
+
+  const handleTouchEnd = useCallback(() => {
+    isDragging.current = false;
+    setTimeout(() => setActiveLetter(null), 600);
+  }, []);
+
+  return (
+    <>
+      {/* Active letter indicator */}
+      <AnimatePresence>
+        {activeLetter && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.5 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.5 }}
+            className="fixed right-16 top-1/2 -translate-y-1/2 z-50 w-14 h-14 rounded-2xl bg-clara-coral flex items-center justify-center shadow-lg"
+          >
+            <span className="text-2xl font-bold text-white">{activeLetter}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Scrubber rail */}
+      <div
+        ref={scrubberRef}
+        className="fixed right-0.5 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center py-2 select-none touch-none"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {allLetters.map((letter) => (
+          <button
+            key={letter}
+            onClick={() => {
+              if (presentLetters.has(letter)) scrollToLetter(letter);
+            }}
+            className={`w-5 h-[14px] flex items-center justify-center text-[9px] font-semibold leading-none transition-colors ${
+              presentLetters.has(letter)
+                ? activeLetter === letter
+                  ? "text-clara-coral"
+                  : "text-clara-text-secondary"
+                : "text-clara-border"
+            }`}
+          >
+            {letter}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -355,23 +453,23 @@ function ContactsPageContent() {
         ) : (
           <>
             {/* Contact list */}
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
               {filtered.map((contact, i) => {
-                // Show letter header when sorting A-Z
                 const rawLetter = contact.full_name[0]?.toUpperCase() || "";
                 const letter = /^[A-Z]$/.test(rawLetter) ? rawLetter : "#";
                 const prevRawLetter = filtered[i - 1]?.full_name[0]?.toUpperCase() || "";
                 const prevLetter = /^[A-Z]$/.test(prevRawLetter) ? prevRawLetter : "#";
                 const showLetterHeader =
-                  sortBy === "name" &&
-                  !searchQuery &&
-                  (i === 0 || prevLetter !== letter);
+                  sortBy === "name" && !searchQuery && (i === 0 || prevLetter !== letter);
 
                 return (
                   <div key={contact.id}>
                     {showLetterHeader && (
-                      <div className="sticky top-14 z-10 -mx-5 px-5 py-1.5 bg-clara-cream/95 backdrop-blur-sm">
-                        <span className="text-xs font-bold text-clara-coral uppercase">
+                      <div
+                        id={`letter-${letter}`}
+                        className="pt-2 pb-1 -mx-5 px-5"
+                      >
+                        <span className="text-[11px] font-bold text-clara-coral">
                           {letter}
                         </span>
                       </div>
@@ -387,6 +485,11 @@ function ContactsPageContent() {
                 );
               })}
             </div>
+
+            {/* Alphabet scrubber — right edge, only in A-Z sort */}
+            {sortBy === "name" && !searchQuery && filtered.length > 10 && (
+              <AlphabetScrubber contacts={filtered} />
+            )}
 
             {/* Search empty state */}
             {filtered.length === 0 && contacts.length > 0 && (
