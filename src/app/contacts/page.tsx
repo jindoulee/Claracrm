@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { ContactCard } from "@/components/contacts/ContactCard";
 import { ImportSheet } from "@/components/contacts/ImportSheet";
-import { Search, Upload, Users, AlertCircle, CheckCircle, Plus, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, Upload, Users, AlertCircle, CheckCircle, Plus, EyeOff, ChevronDown, ChevronUp, ArrowDownAZ, Clock, TrendingUp } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { useToast } from "@/components/ui/Toast";
 import { ContactListSkeleton } from "@/components/ui/Skeleton";
@@ -20,6 +20,28 @@ interface ContactData {
   tags: string[];
   relationship_strength: number;
   last_interaction_at: string | null;
+}
+
+type SortOption = "recent" | "name" | "strength";
+
+const sortOptions: { value: SortOption; label: string; icon: typeof Clock }[] = [
+  { value: "recent", label: "Recent", icon: Clock },
+  { value: "name", label: "A–Z", icon: ArrowDownAZ },
+  { value: "strength", label: "Strength", icon: TrendingUp },
+];
+
+function sortContacts(contacts: ContactData[], sort: SortOption): ContactData[] {
+  return [...contacts].sort((a, b) => {
+    switch (sort) {
+      case "name":
+        return a.full_name.localeCompare(b.full_name);
+      case "strength":
+        return (b.relationship_strength ?? 0) - (a.relationship_strength ?? 0);
+      case "recent":
+      default:
+        return (b.last_interaction_at || "").localeCompare(a.last_interaction_at || "");
+    }
+  });
 }
 
 // Google icon SVG as a component
@@ -49,6 +71,7 @@ function ContactsPageContent() {
   const [isAdding, setIsAdding] = useState(false);
   const [isGoogleImporting, setIsGoogleImporting] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>("recent");
   const [googleResult, setGoogleResult] = useState<{
     imported: number;
     skipped: number;
@@ -215,11 +238,14 @@ function ContactsPageContent() {
     }
   };
 
-  const filtered = contacts.filter(
-    (c) =>
-      c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
+  const filtered = sortContacts(
+    contacts.filter(
+      (c) =>
+        c.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.company?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        c.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
+    ),
+    sortBy
   );
 
   return (
@@ -273,20 +299,40 @@ function ContactsPageContent() {
           )}
         </AnimatePresence>
 
-        {/* Search bar — only show when there are contacts */}
+        {/* Search bar + sort — only show when there are contacts */}
         {contacts.length > 0 && (
-          <div className="relative">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-clara-text-muted"
-            />
-            <input
-              type="text"
-              placeholder="Search people..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-clara-white border border-clara-border text-sm text-clara-text placeholder:text-clara-text-muted focus:outline-none focus:border-clara-coral focus:ring-1 focus:ring-clara-coral/20 transition-colors"
-            />
+          <div className="space-y-3">
+            <div className="relative">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-clara-text-muted"
+              />
+              <input
+                type="text"
+                placeholder="Search people..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-clara-white border border-clara-border text-sm text-clara-text placeholder:text-clara-text-muted focus:outline-none focus:border-clara-coral focus:ring-1 focus:ring-clara-coral/20 transition-colors"
+              />
+            </div>
+
+            {/* Sort pills */}
+            <div className="flex gap-1.5">
+              {sortOptions.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setSortBy(value)}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    sortBy === value
+                      ? "bg-clara-coral text-white"
+                      : "bg-clara-warm-gray text-clara-text-secondary hover:bg-clara-border"
+                  }`}
+                >
+                  <Icon size={12} />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -377,7 +423,7 @@ function ContactsPageContent() {
 
             {/* Hidden contacts section */}
             {hiddenContacts.length > 0 && (
-              <div className="pt-4 pb-8">
+              <div className="pt-4 pb-24">
                 <button
                   onClick={() => setShowHidden(!showHidden)}
                   className="flex items-center gap-2 text-xs text-clara-text-muted hover:text-clara-text transition-colors mx-auto"
