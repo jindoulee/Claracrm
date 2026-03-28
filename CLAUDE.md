@@ -25,6 +25,10 @@ Voice-first personal CRM. "Clara remembers everything so you don't have to."
 - `supabase/migrations/` — Database schema
 - `agents/` — Advisory agent prompts (CTO, PM, Designer, Marketing)
 
+## Git Workflow
+- **Always commit and push directly to `main`** — no feature branches
+- Vercel auto-deploys from `main`
+
 ## Key Design Decisions
 - Mobile-first PWA (Paper by WeTransfer-inspired)
 - Voice-first interaction model
