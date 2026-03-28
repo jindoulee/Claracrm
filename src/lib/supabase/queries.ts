@@ -16,6 +16,7 @@ export async function getContacts(userId: string) {
     .from("contacts")
     .select("*")
     .eq("user_id", userId)
+    .or("status.eq.active,status.is.null")
     .order("last_interaction_at", { ascending: false, nullsFirst: false });
 
   if (error) throw error;
@@ -381,6 +382,7 @@ export async function getDecayingContacts(userId: string) {
     .from("contacts")
     .select("*")
     .eq("user_id", userId)
+    .or("status.eq.active,status.is.null")
     .or(`relationship_strength.lt.40,last_interaction_at.lt.${fourteenDaysAgo}`)
     .order("relationship_strength", { ascending: true })
     .limit(5);
@@ -394,6 +396,7 @@ export async function getFadingRelationships(userId: string) {
     .from("contacts")
     .select("*")
     .eq("user_id", userId)
+    .or("status.eq.active,status.is.null")
     .gte("relationship_strength", 20)
     .lte("relationship_strength", 50)
     .order("relationship_strength", { ascending: true })

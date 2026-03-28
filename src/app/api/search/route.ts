@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
       .from("contacts")
       .select("id, full_name, nickname, company, role, avatar_url")
       .eq("user_id", userId)
+      .or("status.eq.active,status.is.null")
       .or(
         `full_name.ilike.${pattern},company.ilike.${pattern},role.ilike.${pattern},nickname.ilike.${pattern}`
       )

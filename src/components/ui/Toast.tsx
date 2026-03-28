@@ -4,14 +4,26 @@ import { useState, useEffect, useCallback, createContext, useContext } from "rea
 import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle, AlertCircle, X } from "lucide-react";
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
+interface ToastOptions {
+  action?: ToastAction;
+  duration?: number;
+}
+
 interface ToastItem {
   id: string;
   message: string;
   type: "success" | "error";
+  action?: ToastAction;
+  duration: number;
 }
 
 interface ToastContextType {
-  showToast: (message: string, type?: "success" | "error") => void;
+  showToast: (message: string, type?: "success" | "error", options?: ToastOptions) => void;
 }
 
 const ToastContext = createContext<ToastContextType>({
@@ -26,9 +38,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const showToast = useCallback(
-    (message: string, type: "success" | "error" = "success") => {
+    (message: string, type: "success" | "error" = "success", options?: ToastOptions) => {
       const id = Date.now().toString();
-      setToasts((prev) => [...prev, { id, message, type }]);
+      setToasts((prev) => [
+        ...prev,
+        {
+          id,
+          message,
+          type,
+          action: options?.action,
+          duration: options?.duration || 4000,
+        },
+      ]);
     },
     []
   );
@@ -44,7 +65,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       <div className="fixed top-16 left-0 right-0 z-[70] flex flex-col items-center gap-2 pointer-events-none px-5">
         <AnimatePresence>
           {toasts.map((toast) => (
-            <ToastItem key={toast.id} toast={toast} onDismiss={dismiss} />
+            <ToastNotification key={toast.id} toast={toast} onDismiss={dismiss} />
           ))}
         </AnimatePresence>
       </div>
@@ -52,7 +73,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ToastItem({
+function ToastNotification({
   toast,
   onDismiss,
 }: {
@@ -60,9 +81,9 @@ function ToastItem({
   onDismiss: (id: string) => void;
 }) {
   useEffect(() => {
-    const timer = setTimeout(() => onDismiss(toast.id), 4000);
+    const timer = setTimeout(() => onDismiss(toast.id), toast.duration);
     return () => clearTimeout(timer);
-  }, [toast.id, onDismiss]);
+  }, [toast.id, toast.duration, onDismiss]);
 
   const Icon = toast.type === "success" ? CheckCircle : AlertCircle;
 
@@ -85,6 +106,17 @@ function ToastItem({
         }
       />
       <p className="text-sm text-clara-text flex-1">{toast.message}</p>
+      {toast.action && (
+        <button
+          onClick={() => {
+            toast.action!.onClick();
+            onDismiss(toast.id);
+          }}
+          className="flex-shrink-0 text-xs font-semibold text-clara-coral hover:text-clara-coral-dark transition-colors"
+        >
+          {toast.action.label}
+        </button>
+      )}
       <button
         onClick={() => onDismiss(toast.id)}
         className="flex-shrink-0 text-clara-text-muted hover:text-clara-text transition-colors"

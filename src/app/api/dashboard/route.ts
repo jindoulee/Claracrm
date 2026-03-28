@@ -35,11 +35,12 @@ export async function GET() {
         .order("occurred_at", { ascending: false })
         .limit(5),
 
-      // Total contacts count
+      // Total contacts count (active only)
       supabase
         .from("contacts")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", userId),
+        .eq("user_id", userId)
+        .or("status.eq.active,status.is.null"),
 
       // Total interactions count
       supabase

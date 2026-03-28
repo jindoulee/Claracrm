@@ -2,13 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
 import { getUserId } from "@/lib/supabase/client";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const userId = await getUserId();
-  const { data, error } = await supabase
+  const status = req.nextUrl.searchParams.get("status") || "active";
+
+  let query = supabase
     .from("contacts")
     .select("*")
     .eq("user_id", userId)
     .order("last_interaction_at", { ascending: false, nullsFirst: false });
+
+  if (status === "hidden") {
+    query = query.eq("status", "hidden");
+  } else {
+    // Default: only active contacts
+    query = query.or("status.eq.active,status.is.null");
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

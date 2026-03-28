@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { ContactCard } from "@/components/contacts/ContactCard";
 import { ImportSheet } from "@/components/contacts/ImportSheet";
-import { Search, Upload, Users, AlertCircle, CheckCircle, Plus } from "lucide-react";
+import { Search, Upload, Users, AlertCircle, CheckCircle, Plus, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { useToast } from "@/components/ui/Toast";
 import { ContactListSkeleton } from "@/components/ui/Skeleton";
@@ -40,6 +40,7 @@ function ContactsPageContent() {
   const { showToast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [contacts, setContacts] = useState<ContactData[]>([]);
+  const [hiddenContacts, setHiddenContacts] = useState<ContactData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -47,6 +48,7 @@ function ContactsPageContent() {
   const [addForm, setAddForm] = useState({ full_name: "", email: "", phone: "", company: "", notes: "" });
   const [isAdding, setIsAdding] = useState(false);
   const [isGoogleImporting, setIsGoogleImporting] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   const [googleResult, setGoogleResult] = useState<{
     imported: number;
     skipped: number;
@@ -55,12 +57,15 @@ function ContactsPageContent() {
 
   const fetchContacts = useCallback(async () => {
     try {
-      const res = await fetch("/api/contacts");
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setContacts(data);
-      }
+      const [activeRes, hiddenRes] = await Promise.all([
+        fetch("/api/contacts"),
+        fetch("/api/contacts?status=hidden"),
+      ]);
+      if (!activeRes.ok) throw new Error("Failed to fetch");
+      const activeData = await activeRes.json();
+      const hiddenData = hiddenRes.ok ? await hiddenRes.json() : [];
+      if (Array.isArray(activeData)) setContacts(activeData);
+      if (Array.isArray(hiddenData)) setHiddenContacts(hiddenData);
     } catch {
       setError(true);
     } finally {
@@ -132,6 +137,81 @@ function ContactsPageContent() {
       showToast("Couldn't add contact. Try again?", "error");
     } finally {
       setIsAdding(false);
+    }
+  };
+
+  const handleHideContact = async (contactId: string) => {
+    const contact = contacts.find((c) => c.id === contactId);
+    if (!contact) return;
+
+    // Optimistic update
+    setContacts((prev) => prev.filter((c) => c.id !== contactId));
+    setHiddenContacts((prev) => [contact, ...prev]);
+
+    // Show first-time hint
+    const hasSeenHint = localStorage.getItem("clara_hide_hint");
+    const toastMessage = !hasSeenHint
+      ? `${contact.full_name} hidden — won't show in lists or be re-imported`
+      : `${contact.full_name} hidden`;
+
+    if (!hasSeenHint) {
+      localStorage.setItem("clara_hide_hint", "1");
+    }
+
+    // Toast with undo
+    showToast(toastMessage, "success", {
+      action: {
+        label: "Undo",
+        onClick: () => restoreContact(contactId, contact),
+      },
+      duration: 5000,
+    });
+
+    try {
+      const res = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "hidden" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    } catch {
+      // Revert on failure
+      setContacts((prev) => [...prev, contact].sort((a, b) => {
+        const aTime = a.last_interaction_at || "";
+        const bTime = b.last_interaction_at || "";
+        return bTime.localeCompare(aTime);
+      }));
+      setHiddenContacts((prev) => prev.filter((c) => c.id !== contactId));
+      showToast("Couldn't hide contact. Try again?", "error");
+    }
+  };
+
+  const restoreContact = async (contactId: string, contactData?: ContactData) => {
+    const contact = contactData || hiddenContacts.find((c) => c.id === contactId);
+    if (!contact) return;
+
+    // Optimistic update
+    setHiddenContacts((prev) => prev.filter((c) => c.id !== contactId));
+    setContacts((prev) => [...prev, contact].sort((a, b) => {
+      const aTime = a.last_interaction_at || "";
+      const bTime = b.last_interaction_at || "";
+      return bTime.localeCompare(aTime);
+    }));
+
+    showToast(`${contact.full_name} restored`);
+
+    try {
+      const res = await fetch(`/api/contacts/${contactId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    } catch {
+      // Revert on failure
+      setContacts((prev) => prev.filter((c) => c.id !== contactId));
+      setHiddenContacts((prev) => [contact, ...prev]);
+      showToast("Couldn't restore contact. Try again?", "error");
     }
   };
 
@@ -231,7 +311,14 @@ function ContactsPageContent() {
             {/* Contact list */}
             <div className="space-y-2">
               {filtered.map((contact, i) => (
-                <ContactCard key={contact.id} contact={contact} index={i} onClick={() => router.push(`/contacts/${contact.id}`)} />
+                <ContactCard
+                  key={contact.id}
+                  contact={contact}
+                  index={i}
+                  onClick={() => router.push(`/contacts/${contact.id}`)}
+                  onHide={handleHideContact}
+                  mode="active"
+                />
               ))}
             </div>
 
@@ -246,7 +333,7 @@ function ContactsPageContent() {
             )}
 
             {/* No contacts empty state */}
-            {contacts.length === 0 && (
+            {contacts.length === 0 && hiddenContacts.length === 0 && (
               <div className="text-center py-12 px-4">
                 <Users size={36} className="text-clara-coral/30 mx-auto mb-4" />
                 <p className="text-sm font-medium text-clara-text">
@@ -285,6 +372,43 @@ function ContactsPageContent() {
                     Or add someone manually
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Hidden contacts section */}
+            {hiddenContacts.length > 0 && (
+              <div className="pt-4 pb-8">
+                <button
+                  onClick={() => setShowHidden(!showHidden)}
+                  className="flex items-center gap-2 text-xs text-clara-text-muted hover:text-clara-text transition-colors mx-auto"
+                >
+                  <EyeOff size={14} />
+                  <span>{hiddenContacts.length} hidden</span>
+                  {showHidden ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                </button>
+
+                <AnimatePresence>
+                  {showHidden && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-3 space-y-2 overflow-hidden"
+                    >
+                      {hiddenContacts.map((contact, i) => (
+                        <ContactCard
+                          key={contact.id}
+                          contact={contact}
+                          index={i}
+                          onClick={() => router.push(`/contacts/${contact.id}`)}
+                          onRestore={(id) => restoreContact(id)}
+                          mode="hidden"
+                        />
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
           </>

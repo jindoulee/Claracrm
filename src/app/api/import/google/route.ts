@@ -124,9 +124,10 @@ export async function POST(req: NextRequest) {
     let skipped = 0;
     let mergeCandidates = 0;
 
+    // Fetch all contacts including hidden/deleted to prevent re-importing suppressed ones
     const { data: existing } = await supabase
       .from("contacts")
-      .select("id, full_name, email")
+      .select("id, full_name, email, status")
       .eq("user_id", userId);
 
     const existingByName = new Map(
@@ -191,6 +192,7 @@ export async function POST(req: NextRequest) {
           id: newContact.id,
           full_name: contact.full_name,
           email: contact.email,
+          status: "active",
         });
 
         // Flag fuzzy match as merge candidate

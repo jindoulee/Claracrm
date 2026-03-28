@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase/client";
+import { getUserId } from "@/lib/supabase/client";
 
 export async function GET(
   _req: NextRequest,
@@ -108,6 +109,7 @@ export async function PATCH(
       "notes",
       "tags",
       "nickname",
+      "status",
     ];
     const updates: Record<string, unknown> = {};
     for (const key of allowedFields) {
@@ -146,4 +148,25 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const userId = await getUserId();
+
+  // Soft-delete: set status to 'deleted'
+  const { error } = await supabase
+    .from("contacts")
+    .update({ status: "deleted", updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", userId);
+
+  if (error) {
+    return NextResponse.json({ error: "Failed to delete contact" }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
 }

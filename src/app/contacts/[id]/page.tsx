@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -19,6 +19,7 @@ import {
   X,
   Plus,
   Save,
+  Trash2,
 } from "lucide-react";
 import { hapticSuccess, hapticLight } from "@/lib/utils/haptics";
 import { formatTimeAgo } from "@/lib/utils/format";
@@ -132,10 +133,13 @@ interface EditForm {
 
 export default function ContactDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const { showToast } = useToast();
   const [contact, setContact] = useState<ContactDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Chat & task sheet state
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -291,6 +295,21 @@ export default function ContactDetailPage() {
       setIsCreatingTask(false);
     }
   }, [contact, id, taskTitle, taskDueDate, taskPriority, showToast]);
+
+  const handleDelete = useCallback(async () => {
+    if (!contact) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/contacts/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      showToast(`${contact.full_name} deleted`);
+      router.push("/contacts");
+    } catch {
+      showToast("Couldn't delete contact. Try again?", "error");
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  }, [contact, id, router, showToast]);
 
   if (isLoading) {
     return (
@@ -782,6 +801,54 @@ export default function ContactDetailPage() {
               </button>
             </div>
           </motion.section>
+        )}
+
+        {/* ===== Delete Contact ===== */}
+        {!isEditing && (
+          <div className="pt-2 pb-8 flex flex-col items-center">
+            <AnimatePresence mode="wait">
+              {!showDeleteConfirm ? (
+                <motion.button
+                  key="delete-trigger"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="text-xs text-red-400/60 hover:text-red-500 transition-colors flex items-center gap-1"
+                >
+                  <Trash2 size={12} />
+                  Delete contact
+                </motion.button>
+              ) : (
+                <motion.div
+                  key="delete-confirm"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="flex flex-col items-center gap-3 p-4 rounded-2xl bg-red-50 border border-red-100 w-full max-w-xs"
+                >
+                  <p className="text-sm text-clara-text text-center">
+                    Delete {contact.full_name.split(" ")[0]}? This is permanent.
+                  </p>
+                  <div className="flex gap-2 w-full">
+                    <button
+                      onClick={() => setShowDeleteConfirm(false)}
+                      className="flex-1 py-2 rounded-xl text-xs font-medium text-clara-text-secondary border border-clara-border hover:bg-white transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleDelete}
+                      disabled={isDeleting}
+                      className="flex-1 py-2 rounded-xl text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                    >
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
       </div>
 
