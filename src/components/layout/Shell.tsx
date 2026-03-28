@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { MobileNav } from "./MobileNav";
 import { ToastProvider } from "@/components/ui/Toast";
+import { PushPrompt } from "@/components/notifications/PushPrompt";
 
 const fullscreenPages = ["/onboarding", "/login"];
 
@@ -17,6 +18,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
         <MobileNav />
+        <PushPrompt />
       </div>
     </ToastProvider>
   );
